@@ -1,12 +1,13 @@
 from datetime import datetime
-from sqlalchemy import Column, DateTime, Float, String, JSON
+from sqlalchemy import Column, DateTime, Float, String, JSON, PrimaryKeyConstraint
 from app.models.database import Base
 
 
 class RegimeSnapshotModel(Base):
     __tablename__ = "regime_snapshots"
+    __table_args__ = (PrimaryKeyConstraint("id", "timestamp"),)
 
-    id = Column(String, primary_key=True)
+    id = Column(String, nullable=False)
     timestamp = Column(DateTime, nullable=False, index=True, default=datetime.utcnow)
     regime_type = Column(String(50), nullable=False)
     nifty_bias = Column(String(20))

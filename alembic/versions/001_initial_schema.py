@@ -44,7 +44,7 @@ def upgrade():
 
     op.create_table(
         "regime_snapshots",
-        sa.Column("id", sa.String, primary_key=True),
+        sa.Column("id", sa.String, nullable=False),
         sa.Column("timestamp", sa.DateTime, nullable=False, index=True),
         sa.Column("regime_type", sa.String(50), nullable=False),
         sa.Column("nifty_bias", sa.String(20)),
@@ -57,6 +57,7 @@ def upgrade():
         sa.Column("put_buying_env", sa.String(5)),
         sa.Column("reason", sa.String(500)),
         sa.Column("raw", JSON),
+        sa.PrimaryKeyConstraint("id", "timestamp"),
     )
 
     op.create_table(
