@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NSE F&O Screener</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+  header { background: #1a1d2e; border-bottom: 1px solid #2d3148; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 18px; font-weight: 600; color: #a78bfa; letter-spacing: 0.5px; }
+  #status-bar { display: flex; align-items: center; gap: 12px; font-size: 13px; color: #94a3b8; }
+  #ws-dot { width: 8px; height: 8px; border-radius: 50%; background: #f87171; display: inline-block; }
+  #ws-dot.live { background: #34d399; }
+  main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .card { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 10px; padding: 18px; }
+  .card h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 12px; }
+  .big-val { font-size: 28px; font-weight: 700; line-height: 1; }
+  .sub { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; }
+  .badge.BULL, .badge.BULLISH, .badge.CALL { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+  .badge.BEAR, .badge.BEARISH, .badge.PUT  { background: #450a0a; color: #f87171; border: 1px solid #991b1b; }
+  .badge.NEUTRAL, .badge.SIDEWAYS, .badge.MIXED { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+  .badge.HIGH { background: #450a0a; color: #f87171; border: 1px solid #991b1b; }
+  .badge.LOW  { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+  .badge.Aplus { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+  .badge.A  { background: #1a2e0f; color: #86efac; border: 1px solid #166534; }
+  .badge.B  { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .section-header h2 { font-size: 14px; font-weight: 600; color: #e2e8f0; }
+  button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; padding: 8px 18px; transition: opacity .15s; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #scan-btn { background: #7c3aed; color: #fff; }
+  #scan-btn:hover:not(:disabled) { background: #6d28d9; }
+  #refresh-btn { background: #1e293b; color: #94a3b8; border: 1px solid #334155; margin-left: 8px; }
+  #refresh-btn:hover { background: #2d3148; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; border-bottom: 1px solid #2d3148; }
+  tbody tr { border-bottom: 1px solid #1e293b; transition: background .1s; }
+  tbody tr:hover { background: #1e293b; }
+  td { padding: 10px 12px; vertical-align: middle; }
+  .sym { font-weight: 600; color: #a78bfa; }
+  .num { font-variant-numeric: tabular-nums; color: #e2e8f0; }
+  .empty { text-align: center; color: #475569; padding: 40px 0; font-size: 14px; }
+  .reasons { font-size: 11px; color: #64748b; max-width: 300px; line-height: 1.5; }
+  .risk-reason { font-size: 12px; color: #f87171; margin-top: 4px; }
+  .risk-reason.ok { color: #34d399; }
+  #last-scan { font-size: 12px; color: #475569; }
+  .gate-bar { height: 6px; background: #1e293b; border-radius: 3px; width: 80px; display: inline-block; vertical-align: middle; overflow: hidden; }
+  .gate-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+  .vix-val { font-size: 28px; font-weight: 700; }
+  .vix-val.low { color: #34d399; }
+  .vix-val.med { color: #fbbf24; }
+  .vix-val.high { color: #f87171; }
+  .auth-notice { background: #1a1d2e; border: 1px solid #7c3aed44; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; font-size: 13px; color: #94a3b8; display: flex; align-items: center; gap: 12px; }
+  .auth-notice a { color: #a78bfa; text-decoration: none; font-weight: 600; }
+  .auth-notice a:hover { text-decoration: underline; }
+  .events { list-style: none; }
+  .events li { padding: 3px 0; font-size: 12px; color: #fbbf24; }
+  .events li::before { content: "⚠ "; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>NSE F&O Screener</h1>
+  <div id="status-bar">
+    <span id="ws-dot"></span>
+    <span id="ws-label">Connecting…</span>
+    <span id="last-scan"></span>
+  </div>
+</header>
+
+<main>
+  <div id="auth-notice" class="auth-notice" style="display:none">
+    <span>🔑 Kite token may be expired.</span>
+    <a id="auth-link" href="/auth/login-url" target="_blank">Refresh token →</a>
+    <span style="color:#475569; margin-left:auto; font-size:11px">Tokens expire daily at 6 AM IST</span>
+  </div>
+
+  <div class="grid">
+    <div class="card" id="regime-card">
+      <h2>Market Regime</h2>
+      <div id="regime-content"><div class="empty">Loading…</div></div>
+    </div>
+    <div class="card" id="vix-card">
+      <h2>VIX &amp; Environment</h2>
+      <div id="vix-content"><div class="empty">Loading…</div></div>
+    </div>
+    <div class="card" id="breadth-card">
+      <h2>Market Breadth</h2>
+      <div id="breadth-content"><div class="empty">Loading…</div></div>
+    </div>
+    <div class="card" id="macro-card">
+      <h2>Macro Risk</h2>
+      <div id="macro-content"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-header">
+      <h2>Signals <span id="signal-count" style="color:#64748b; font-weight:400; font-size:13px"></span></h2>
+      <div>
+        <button id="scan-btn" onclick="triggerScan()">▶ Scan Now</button>
+        <button id="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+      </div>
+    </div>
+    <div id="signals-content"><div class="empty">No signals yet. Click "Scan Now" to run a scan.</div></div>
+  </div>
+</main>
+
+<script>
+const API = '';
+
+async function get(path) {
+  const r = await fetch(API + path);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+async function loadRegime() {
+  try {
+    const d = await get('/market/regime');
+    const regimeBadge = badge(d.regime_type);
+    const biasBadge   = badge(d.overall_bias);
+    document.getElementById('regime-content').innerHTML = `
+      <div class="big-val">${regimeBadge}</div>
+      <div class="sub">Bias: ${biasBadge}</div>
+      <div class="sub" style="margin-top:8px; line-height:1.6; color:#94a3b8; font-size:12px">${d.reason || ''}</div>
+    `;
+
+    const vixClass = d.vix < 15 ? 'low' : d.vix < 22 ? 'med' : 'high';
+    document.getElementById('vix-content').innerHTML = `
+      <div class="vix-val ${vixClass}">${(+d.vix).toFixed(2)}</div>
+      <div class="sub">${d.vix_signal || ''}</div>
+      <div class="pill-row" style="margin-top:10px">
+        <span>CALL: ${badge2(d.call_buying_environment)}</span>
+        <span>PUT: ${badge2(d.put_buying_environment)}</span>
+      </div>
+      <div class="sub" style="margin-top:8px">Nifty: ${badge(d.nifty_bias)} &nbsp; BankNifty: ${badge(d.banknifty_bias)}</div>
+    `;
+  } catch(e) {
+    document.getElementById('regime-content').innerHTML = errHtml(e);
+    document.getElementById('vix-content').innerHTML = errHtml(e);
+    if (String(e).includes('401') || String(e).includes('403')) showAuthNotice();
+  }
+}
+
+async function loadBreadth() {
+  try {
+    const d = await get('/market/breadth');
+    const ratio = (+d.advance_decline_ratio).toFixed(2);
+    const score = (+d.breadth_score * 100).toFixed(0);
+    document.getElementById('breadth-content').innerHTML = `
+      <div class="big-val" style="color:${ratio >= 1 ? '#4ade80' : '#f87171'}">${ratio}</div>
+      <div class="sub">A/D Ratio · Score: ${score}%</div>
+      <div class="pill-row" style="margin-top:10px; font-size:12px; color:#94a3b8">
+        <span style="color:#4ade80">▲ ${d.advances} Advances</span>
+        <span style="color:#f87171">▼ ${d.declines} Declines</span>
+        <span>— ${d.unchanged} Unchanged</span>
+      </div>
+    `;
+  } catch(e) {
+    document.getElementById('breadth-content').innerHTML = errHtml(e);
+  }
+}
+
+async function loadMacro() {
+  try {
+    const d = await get('/market/macro-risk');
+    const riskClass = d.is_high_risk ? 'HIGH' : 'LOW';
+    const events = (d.upcoming_events || []).map(e => `<li>${e}</li>`).join('');
+    document.getElementById('macro-content').innerHTML = `
+      <div class="big-val">${badge(riskClass)}</div>
+      <div class="sub" style="margin-top:8px">USD/INR: ${d.usdinr || '—'} &nbsp;|&nbsp; FII Flow: ₹${d.fii_net_flow_cr || '—'} Cr</div>
+      ${events ? `<ul class="events" style="margin-top:8px">${events}</ul>` : ''}
+      ${(d.reasons||[]).map(r => `<div class="risk-reason ${d.is_high_risk ? '' : 'ok'}">${r}</div>`).join('')}
+    `;
+  } catch(e) {
+    document.getElementById('macro-content').innerHTML = errHtml(e);
+  }
+}
+
+async function loadSignals() {
+  try {
+    const d = await get('/signals');
+    renderSignals(d.signals || []);
+  } catch(e) {
+    document.getElementById('signals-content').innerHTML = errHtml(e);
+  }
+}
+
+function renderSignals(sigs) {
+  const el = document.getElementById('signals-content');
+  const count = document.getElementById('signal-count');
+  count.textContent = sigs.length ? `(${sigs.length})` : '';
+  if (!sigs.length) {
+    el.innerHTML = '<div class="empty">No signals in this scan. Markets may be closed or conditions unmet.</div>';
+    return;
+  }
+  const rows = sigs.map(s => {
+    const conf = s.confidence === 'A+' ? 'Aplus' : s.confidence;
+    const gateW = Math.round((s.gate_score / 8) * 100);
+    return `<tr>
+      <td class="sym">${s.symbol}</td>
+      <td>${badge(s.direction)}</td>
+      <td><span class="badge ${conf}">${s.confidence}</span></td>
+      <td>
+        <div class="gate-bar"><div class="gate-fill" style="width:${gateW}%"></div></div>
+        <span style="font-size:11px; color:#64748b; margin-left:6px">${s.gate_score}/8</span>
+      </td>
+      <td class="num">${fmt(s.strike)}</td>
+      <td style="font-size:11px; color:#64748b">${s.expiry ? s.expiry.slice(0,10) : '—'}</td>
+      <td class="num">${fmt(s.premium)}</td>
+      <td class="num">${fmt(s.entry_zone)}</td>
+      <td class="num" style="color:#f87171">${fmt(s.stop_loss)}</td>
+      <td class="num" style="color:#4ade80">${fmt(s.target_1)}</td>
+      <td class="num" style="color:#34d399">${fmt(s.target_2)}</td>
+      <td class="num" style="color:#a78bfa">${s.rr_ratio ? s.rr_ratio.toFixed(1)+'x' : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>Symbol</th><th>Dir</th><th>Grade</th><th>Gates</th>
+      <th>Strike</th><th>Expiry</th><th>Premium</th>
+      <th>Entry</th><th>Stop Loss</th><th>Target 1</th><th>Target 2</th><th>R:R</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+async function triggerScan() {
+  const btn = document.getElementById('scan-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Scanning…';
+  try {
+    const r = await fetch(API + '/scan', { method: 'POST' });
+    const d = await r.json();
+    renderSignals(d.signals || []);
+    updateLastScan();
+  } catch(e) {
+    alert('Scan failed: ' + e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ Scan Now';
+  }
+}
+
+async function loadAll() {
+  await Promise.all([loadRegime(), loadBreadth(), loadMacro(), loadSignals()]);
+  updateLastScan();
+}
+
+function updateLastScan() {
+  document.getElementById('last-scan').textContent = 'Last updated: ' + new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+
+function badge(val) {
+  if (!val) return '—';
+  const cls = val.replace(/[^A-Z+]/gi,'').replace('+','plus');
+  return `<span class="badge ${val.replace('+','plus')}">${val}</span>`;
+}
+function badge2(val) {
+  if (val === true || val === 'true') return `<span class="badge BULL">✓ Yes</span>`;
+  if (val === false || val === 'false') return `<span class="badge BEAR">✗ No</span>`;
+  return `<span class="badge NEUTRAL">${val}</span>`;
+}
+function fmt(v) {
+  if (v == null || v === undefined) return '—';
+  return (+v).toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+}
+function errHtml(e) {
+  return `<div class="empty" style="color:#f87171">Error: ${e.message || e}</div>`;
+}
+function showAuthNotice() {
+  const el = document.getElementById('auth-notice');
+  el.style.display = 'flex';
+  fetch('/auth/login-url').then(r=>r.json()).then(d=>{
+    document.getElementById('auth-link').href = d.login_url;
+  }).catch(()=>{});
+}
+
+// WebSocket live updates
+function connectWS() {
+  const dot = document.getElementById('ws-dot');
+  const label = document.getElementById('ws-label');
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${proto}//${location.host}/ws/alerts`);
+  ws.onopen = () => { dot.classList.add('live'); label.textContent = 'Live'; };
+  ws.onclose = () => { dot.classList.remove('live'); label.textContent = 'Reconnecting…'; setTimeout(connectWS, 3000); };
+  ws.onerror = () => ws.close();
+  ws.onmessage = (ev) => {
+    try {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === 'SIGNALS') { renderSignals(msg.signals || []); updateLastScan(); }
+    } catch(_) {}
+    setInterval(() => ws.send('ping'), 30000);
+  };
+}
+
+// Auto-refresh market cards every 2 minutes
+setInterval(() => { loadRegime(); loadBreadth(); loadMacro(); }, 120000);
+
+loadAll();
+connectWS();
+</script>
+</body>
+</html>

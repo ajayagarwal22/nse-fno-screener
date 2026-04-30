@@ -4,10 +4,12 @@ Exposes REST endpoints for market data, signals, and exports,
 plus a WebSocket endpoint that pushes new signals in real time.
 """
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from app.config import settings
 from app.routers import market, scan, signals, option_chain, export
@@ -116,7 +118,14 @@ app.include_router(option_chain.router)
 app.include_router(export.router)
 
 
-@app.get("/", tags=["root"])
+@app.get("/", tags=["dashboard"])
+async def dashboard():
+    """Serve the visual dashboard."""
+    html_path = os.path.join(os.path.dirname(__file__), "dashboard.html")
+    return FileResponse(html_path, media_type="text/html")
+
+
+@app.get("/api", tags=["root"])
 async def root():
     return {
         "service": "NSE F&O Options Screener",
