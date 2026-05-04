@@ -30,18 +30,44 @@ async def get_signals(
 
     return {
         "count": len(results),
-        "signals": [
-            {
-                "id": s.id,
-                "timestamp": s.timestamp.isoformat(),
-                "symbol": s.symbol,
-                "direction": s.direction.value,
-                "confidence": s.confidence.value,
-                "gate_score": s.gate_score,
-                "alert_text": s.to_alert_text(),
-            }
-            for s in results
-        ],
+        "signals": [_serialize(s) for s in results],
+    }
+
+
+def _serialize(s) -> dict:
+    return {
+        "id": s.id,
+        "timestamp": s.timestamp.isoformat(),
+        "symbol": s.symbol,
+        "direction": s.direction.value,
+        "trade_type": s.trade_type.value,
+        "confidence": s.confidence.value,
+        "gate_score": s.gate_score,
+        "gates_passed": s.gates_passed,
+        "entry_zone": s.entry_zone,
+        "stop_loss": s.stop_loss,
+        "target_1": s.target_1,
+        "target_2": s.target_2,
+        "rr_ratio": s.rr_ratio,
+        "position_sizing": s.position_sizing,
+        "time_sensitivity": s.time_sensitivity,
+        "reasons": s.reasons,
+        "regime_type": s.regime_type,
+        "vix_level": s.vix_level,
+        "rsi_value": s.rsi_value,
+        "macd_status": s.macd_status,
+        "vwap_status": s.vwap_status,
+        "oi_interpretation": s.oi_interpretation,
+        "pcr_value": s.pcr_value,
+        "option": {
+            "strike": s.option.strike,
+            "expiry": s.option.expiry.isoformat(),
+            "type": s.option.option_type.value,
+            "premium": s.option.current_premium,
+            "iv": s.option.iv,
+            "dte": s.option.days_to_expiry,
+        } if s.option else None,
+        "alert_text": s.to_alert_text(),
     }
 
 
@@ -49,29 +75,6 @@ async def get_signals(
 async def get_signal(signal_id: str):
     for s in _last_signals:
         if s.id == signal_id:
-            return {
-                "id": s.id,
-                "timestamp": s.timestamp.isoformat(),
-                "symbol": s.symbol,
-                "direction": s.direction.value,
-                "trade_type": s.trade_type.value,
-                "confidence": s.confidence.value,
-                "gate_score": s.gate_score,
-                "gates_passed": s.gates_passed,
-                "entry_zone": s.entry_zone,
-                "stop_loss": s.stop_loss,
-                "target_1": s.target_1,
-                "target_2": s.target_2,
-                "reasons": s.reasons,
-                "option": {
-                    "strike": s.option.strike,
-                    "expiry": s.option.expiry.isoformat(),
-                    "type": s.option.option_type.value,
-                    "premium": s.option.current_premium,
-                    "iv": s.option.iv,
-                    "dte": s.option.days_to_expiry,
-                } if s.option else None,
-                "alert_text": s.to_alert_text(),
-            }
+            return _serialize(s)
     from fastapi import HTTPException
     raise HTTPException(status_code=404, detail="Signal not found")

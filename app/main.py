@@ -65,20 +65,11 @@ async def lifespan(app: FastAPI):
 
     async def on_signals(sigs):
         update_signals(sigs)
+        from app.routers.signals import _serialize
         await ws_manager.broadcast({
             "type": "SIGNALS",
             "count": len(sigs),
-            "signals": [
-                {
-                    "id": s.id,
-                    "symbol": s.symbol,
-                    "direction": s.direction.value,
-                    "confidence": s.confidence.value,
-                    "gate_score": s.gate_score,
-                    "alert_text": s.to_alert_text(),
-                }
-                for s in sigs
-            ],
+            "signals": [_serialize(s) for s in sigs],
         })
 
     set_signals_callback(on_signals)

@@ -152,7 +152,7 @@ async function loadBreadth() {
   try {
     const d = await get('/market/breadth');
     const ratio = (+d.advance_decline_ratio).toFixed(2);
-    const score = (+d.breadth_score * 100).toFixed(0);
+    const score = (+d.breadth_score).toFixed(1);
     document.getElementById('breadth-content').innerHTML = `
       <div class="big-val" style="color:${ratio >= 1 ? '#4ade80' : '#f87171'}">${ratio}</div>
       <div class="sub">A/D Ratio · Score: ${score}%</div>
@@ -202,31 +202,33 @@ function renderSignals(sigs) {
   }
   const rows = sigs.map(s => {
     const conf = s.confidence === 'A+' ? 'Aplus' : s.confidence;
-    const gateW = Math.round((s.gate_score / 8) * 100);
+    const opt = s.option || {};
+    const reasons = (s.reasons || []).map(r => `<div>• ${r}</div>`).join('');
     return `<tr>
       <td class="sym">${s.symbol}</td>
       <td>${badge(s.direction)}</td>
       <td><span class="badge ${conf}">${s.confidence}</span></td>
       <td>
-        <div class="gate-bar"><div class="gate-fill" style="width:${gateW}%"></div></div>
-        <span style="font-size:11px; color:#64748b; margin-left:6px">${s.gate_score}/8</span>
+        <div class="gate-bar"><div class="gate-fill" style="width:${s.gate_score}%"></div></div>
+        <span style="font-size:11px; color:#64748b; margin-left:6px">${s.gate_score}%</span>
       </td>
-      <td class="num">${fmt(s.strike)}</td>
-      <td style="font-size:11px; color:#64748b">${s.expiry ? s.expiry.slice(0,10) : '—'}</td>
-      <td class="num">${fmt(s.premium)}</td>
-      <td class="num">${fmt(s.entry_zone)}</td>
-      <td class="num" style="color:#f87171">${fmt(s.stop_loss)}</td>
-      <td class="num" style="color:#4ade80">${fmt(s.target_1)}</td>
-      <td class="num" style="color:#34d399">${fmt(s.target_2)}</td>
-      <td class="num" style="color:#a78bfa">${s.rr_ratio ? s.rr_ratio.toFixed(1)+'x' : '—'}</td>
+      <td class="num">${opt.strike ? fmt(opt.strike) : '—'}</td>
+      <td style="font-size:11px; color:#64748b">${opt.expiry ? opt.expiry.slice(0,10) : '—'}</td>
+      <td class="num">${opt.premium != null ? fmt(opt.premium) : '—'}</td>
+      <td style="font-size:11px; color:#94a3b8; max-width:160px">${s.entry_zone || '—'}</td>
+      <td style="font-size:11px; color:#f87171; max-width:160px">${s.stop_loss || '—'}</td>
+      <td style="font-size:11px; color:#4ade80">${s.target_1 || '—'}</td>
+      <td style="font-size:11px; color:#34d399">${s.target_2 || '—'}</td>
+      <td class="num" style="color:#a78bfa">${s.rr_ratio || '—'}</td>
+      <td class="reasons">${reasons}</td>
     </tr>`;
   }).join('');
 
   el.innerHTML = `<table>
     <thead><tr>
-      <th>Symbol</th><th>Dir</th><th>Grade</th><th>Gates</th>
+      <th>Symbol</th><th>Dir</th><th>Grade</th><th>Score</th>
       <th>Strike</th><th>Expiry</th><th>Premium</th>
-      <th>Entry</th><th>Stop Loss</th><th>Target 1</th><th>Target 2</th><th>R:R</th>
+      <th>Entry</th><th>Stop Loss</th><th>Target 1</th><th>Target 2</th><th>R:R</th><th>Reasons</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
