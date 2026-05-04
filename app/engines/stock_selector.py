@@ -13,6 +13,16 @@ from app.config import settings
 from app.data.kite_client import kite_client
 from app.engines.market_regime import Bias, MarketRegime
 
+# NSE indices screened for options — ordered by liquidity / priority.
+# SENSEX (BSE) requires BFO exchange handling and is not yet supported.
+_NSE_INDEX_CONFIGS: list[tuple[str, str]] = [
+    # (option_chain_name,  nse_tradingsymbol)
+    ("NIFTY",     "NIFTY 50"),
+    ("BANKNIFTY", "NIFTY BANK"),
+    ("FINNIFTY",  "NIFTY FIN SERVICE"),
+    ("MIDCPNIFTY","NIFTY MIDCAP SELECT"),
+]
+
 
 class Candidacy(str, Enum):
     BULLISH = "BULLISH_CANDIDATE"
@@ -67,6 +77,71 @@ def _check_option_liquidity(symbol: str) -> bool:
         return False
 
 
+def _build_index_candidates(
+    regime: MarketRegime,
+    nifty_daily_df: pd.DataFrame | None,
+) -> list[StockCandidate]:
+    """
+    Always-included index candidates (NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY).
+    Spot tokens fetched from Kite NSE instruments list so we never hardcode them.
+    Direction: computed from RS vs Nifty, except for NIFTY itself which uses regime bias.
+    """
+    index_tokens = kite_client.get_nse_index_tokens()
+
+    nifty_ret = pd.Series(dtype=float)
+    if nifty_daily_df is not None and not nifty_daily_df.empty:
+        nifty_ret = nifty_daily_df["close"].pct_change().dropna().tail(20)
+
+    candidates: list[StockCandidate] = []
+
+    for symbol, nse_sym in _NSE_INDEX_CONFIGS:
+        token = index_tokens.get(nse_sym)
+        if token is None:
+            continue
+        try:
+            df = kite_client.get_ohlcv(token, interval="day")
+        except Exception:
+            continue
+        if df is None or len(df) < 21:
+            continue
+
+        index_ret = df["close"].pct_change().dropna().tail(20)
+
+        if symbol == "NIFTY":
+            # RS vs itself is always 0 — use regime's nifty bias instead
+            if regime.nifty_bias == Bias.BULLISH:
+                rs, candidacy = 0.03, Candidacy.BULLISH
+                reason = "Nifty 50 — regime bullish"
+            elif regime.nifty_bias == Bias.BEARISH:
+                rs, candidacy = -0.03, Candidacy.BEARISH
+                reason = "Nifty 50 — regime bearish"
+            else:
+                continue
+        else:
+            rs = _relative_strength(index_ret, nifty_ret)
+            if rs > 0.02:
+                candidacy = Candidacy.BULLISH
+                reason = f"{nse_sym} RS={rs:+.2%} — outperforming Nifty"
+            elif rs < -0.02:
+                candidacy = Candidacy.BEARISH
+                reason = f"{nse_sym} RS={rs:+.2%} — underperforming Nifty"
+            else:
+                continue
+
+        _, vol_ratio = _volume_expansion(df, 1.0)
+        candidates.append(StockCandidate(
+            symbol=symbol,
+            instrument_token=token,
+            candidacy=candidacy,
+            rs_score=round(rs, 4),
+            volume_ratio=vol_ratio,
+            option_liquidity=True,   # index options are always liquid
+            reason=reason,
+        ))
+
+    return candidates
+
+
 def select_candidates(
     regime: MarketRegime,
     nifty_daily_df: pd.DataFrame | None = None,
@@ -101,10 +176,9 @@ def select_candidates(
 
         stock_ret = df["close"].pct_change().dropna().tail(20)
         rs = _relative_strength(stock_ret, nifty_ret)
-        vol_ok, vol_ratio = _volume_expansion(df, settings.min_volume_multiplier)
-
-        if not vol_ok:
-            continue
+        # Skip daily volume gate intraday — today's bar is incomplete so it always
+        # reads below the 20-day average. Layer 3 checks intraday volume on 5-min data.
+        _, vol_ratio = _volume_expansion(df, settings.min_volume_multiplier)
 
         opt_liquid = _check_option_liquidity(symbol)
 
@@ -138,4 +212,6 @@ def select_candidates(
         key=lambda x: x.rs_score,
     )[:top_n]
 
-    return bullish + bearish
+    # Index candidates always prepended — they are highest priority and most liquid
+    index_cands = _build_index_candidates(regime, nifty_daily_df)
+    return index_cands + bullish + bearish

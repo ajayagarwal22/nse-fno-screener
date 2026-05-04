@@ -5,61 +5,150 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>NSE F&O Screener</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
-  header { background: #1a1d2e; border-bottom: 1px solid #2d3148; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
-  header h1 { font-size: 18px; font-weight: 600; color: #a78bfa; letter-spacing: 0.5px; }
-  #status-bar { display: flex; align-items: center; gap: 12px; font-size: 13px; color: #94a3b8; }
-  #ws-dot { width: 8px; height: 8px; border-radius: 50%; background: #f87171; display: inline-block; }
-  #ws-dot.live { background: #34d399; }
-  main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px; }
-  .card { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 10px; padding: 18px; }
-  .card h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 12px; }
-  .big-val { font-size: 28px; font-weight: 700; line-height: 1; }
-  .sub { font-size: 12px; color: #94a3b8; margin-top: 6px; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; }
-  .badge.BULL, .badge.BULLISH, .badge.CALL { background: #052e16; color: #4ade80; border: 1px solid #166534; }
-  .badge.BEAR, .badge.BEARISH, .badge.PUT  { background: #450a0a; color: #f87171; border: 1px solid #991b1b; }
-  .badge.NEUTRAL, .badge.SIDEWAYS, .badge.MIXED { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
-  .badge.HIGH { background: #450a0a; color: #f87171; border: 1px solid #991b1b; }
-  .badge.LOW  { background: #052e16; color: #4ade80; border: 1px solid #166534; }
-  .badge.Aplus { background: #052e16; color: #4ade80; border: 1px solid #166534; }
-  .badge.A  { background: #1a2e0f; color: #86efac; border: 1px solid #166534; }
-  .badge.B  { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
-  .pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-  .section-header h2 { font-size: 14px; font-weight: 600; color: #e2e8f0; }
-  button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; padding: 8px 18px; transition: opacity .15s; }
-  button:disabled { opacity: 0.5; cursor: not-allowed; }
-  #scan-btn { background: #7c3aed; color: #fff; }
-  #scan-btn:hover:not(:disabled) { background: #6d28d9; }
-  #refresh-btn { background: #1e293b; color: #94a3b8; border: 1px solid #334155; margin-left: 8px; }
-  #refresh-btn:hover { background: #2d3148; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  thead th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; border-bottom: 1px solid #2d3148; }
-  tbody tr { border-bottom: 1px solid #1e293b; transition: background .1s; }
-  tbody tr:hover { background: #1e293b; }
-  td { padding: 10px 12px; vertical-align: middle; }
-  .sym { font-weight: 600; color: #a78bfa; }
-  .num { font-variant-numeric: tabular-nums; color: #e2e8f0; }
-  .empty { text-align: center; color: #475569; padding: 40px 0; font-size: 14px; }
-  .reasons { font-size: 11px; color: #64748b; max-width: 300px; line-height: 1.5; }
-  .risk-reason { font-size: 12px; color: #f87171; margin-top: 4px; }
-  .risk-reason.ok { color: #34d399; }
-  #last-scan { font-size: 12px; color: #475569; }
-  .gate-bar { height: 6px; background: #1e293b; border-radius: 3px; width: 80px; display: inline-block; vertical-align: middle; overflow: hidden; }
-  .gate-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #7c3aed, #a78bfa); }
-  .vix-val { font-size: 28px; font-weight: 700; }
-  .vix-val.low { color: #34d399; }
-  .vix-val.med { color: #fbbf24; }
-  .vix-val.high { color: #f87171; }
-  .auth-notice { background: #1a1d2e; border: 1px solid #7c3aed44; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; font-size: 13px; color: #94a3b8; display: flex; align-items: center; gap: 12px; }
-  .auth-notice a { color: #a78bfa; text-decoration: none; font-weight: 600; }
-  .auth-notice a:hover { text-decoration: underline; }
-  .events { list-style: none; }
-  .events li { padding: 3px 0; font-size: 12px; color: #fbbf24; }
-  .events li::before { content: "⚠ "; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #080b12; color: #e2e8f0; min-height: 100vh; }
+
+/* ── Header ── */
+header { background: #0d1117; border-bottom: 1px solid #1e2533; padding: 13px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+header h1 { font-size: 16px; font-weight: 700; color: #a78bfa; letter-spacing: 0.3px; }
+#status-bar { display: flex; align-items: center; gap: 14px; font-size: 12px; color: #64748b; }
+#ws-dot { width: 7px; height: 7px; border-radius: 50%; background: #ef4444; display: inline-block; transition: background .3s; }
+#ws-dot.live { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+#last-scan { font-size: 11px; color: #334155; }
+
+/* ── Layout ── */
+main { padding: 18px 20px; max-width: 1600px; margin: 0 auto; }
+
+/* ── Market overview ── */
+.mkt-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+@media (max-width: 1100px) { .mkt-grid { grid-template-columns: repeat(2, 1fr); } }
+.mkt-card { background: #0d1117; border: 1px solid #1e2533; border-radius: 10px; padding: 16px; }
+.mkt-card h2 { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #334155; margin-bottom: 10px; }
+.mkt-val { font-size: 26px; font-weight: 700; line-height: 1; }
+.mkt-sub { font-size: 11px; color: #64748b; margin-top: 5px; }
+.mkt-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.vix-low { color: #22c55e; } .vix-med { color: #f59e0b; } .vix-high { color: #ef4444; }
+.skeleton { background: linear-gradient(90deg, #1e2533 25%, #252d3d 50%, #1e2533 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; height: 20px; margin-top: 6px; }
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+.stat-row { display: flex; gap: 16px; margin-top: 8px; }
+.stat { text-align: center; }
+.stat-val { font-size: 15px; font-weight: 700; }
+.stat-lbl { font-size: 10px; color: #475569; margin-top: 2px; }
+
+/* ── Badges ── */
+.badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.4px; }
+.badge.BULLISH,.badge.CALL,.badge.BULL { background:#052e16; color:#4ade80; border:1px solid #166534; }
+.badge.BEARISH,.badge.PUT,.badge.BEAR  { background:#450a0a; color:#f87171; border:1px solid #991b1b; }
+.badge.NEUTRAL,.badge.MIXED            { background:#1e293b; color:#94a3b8; border:1px solid #334155; }
+.badge.HIGH { background:#450a0a; color:#f87171; border:1px solid #7f1d1d; }
+.badge.LOW  { background:#052e16; color:#4ade80; border:1px solid #14532d; }
+.badge.Aplus  { background:#14532d; color:#4ade80; border:1px solid #16a34a; }
+.badge.Aminus { background:#1a3a1a; color:#86efac; border:1px solid #166534; }
+.badge.B      { background:#1e293b; color:#94a3b8; border:1px solid #334155; }
+.badge.TRENDING_BULLISH { background:#052e16; color:#4ade80; border:1px solid #166534; }
+.badge.TRENDING_BEARISH { background:#450a0a; color:#f87171; border:1px solid #991b1b; }
+.badge.RANGEBOUND,.badge.MEAN_REVERTING { background:#1e293b; color:#94a3b8; border:1px solid #334155; }
+.badge.HIGH_VOL_EXPANSION { background:#451a03; color:#fb923c; border:1px solid #9a3412; }
+.badge.EVENT_RISK { background:#3b1c8c; color:#c4b5fd; border:1px solid #5b21b6; }
+
+/* ── Pipeline ── */
+.pipeline-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.pipeline-bar h2 { font-size:13px; font-weight:700; color:#e2e8f0; }
+.btn-row { display:flex; gap:8px; align-items:center; }
+button { cursor:pointer; border:none; border-radius:6px; font-size:12px; font-weight:600; padding:7px 14px; transition:all .15s; }
+button:disabled { opacity:.5; cursor:not-allowed; }
+#scan-btn { background:#7c3aed; color:#fff; }
+#scan-btn:hover:not(:disabled) { background:#6d28d9; }
+.btn-sec { background:#0d1117; color:#94a3b8; border:1px solid #1e2533; }
+.btn-sec:hover { background:#1e2533; }
+.btn-sm { padding:3px 9px; font-size:10px; border-radius:4px; }
+#scan-status { font-size:11px; color:#64748b; }
+
+.pipeline { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+@media(max-width:1100px){.pipeline{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:640px){.pipeline{grid-template-columns:1fr;}}
+
+.lane { background:#0d1117; border:1px solid #1e2533; border-radius:10px; padding:12px; min-height:220px; }
+.lane-hdr { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.2px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; }
+.lane-hdr-left { display:flex; align-items:center; gap:7px; }
+.ldot { width:7px; height:7px; border-radius:50%; }
+.cnt { background:#1e2533; color:#64748b; border-radius:8px; padding:1px 7px; font-size:10px; }
+.lane-alert   .lane-hdr { color:#f59e0b; } .lane-alert   .ldot { background:#f59e0b; }
+.lane-triggered .lane-hdr { color:#22c55e; } .lane-triggered .ldot { background:#22c55e; }
+.lane-exit    .lane-hdr { color:#60a5fa; } .lane-exit    .ldot { background:#60a5fa; }
+.lane-expired .lane-hdr { color:#475569; } .lane-expired .ldot { background:#475569; }
+.empty-lane { text-align:center; color:#1e2533; padding:30px 0; font-size:12px; }
+
+/* ── Signal cards ── */
+.sig-card { background:#13182a; border-radius:8px; padding:11px 12px; margin-bottom:9px; border-left:3px solid transparent; }
+.lane-alert    .sig-card { border-left-color:#f59e0b; }
+.lane-triggered .sig-card { border-left-color:#22c55e; }
+.lane-exit     .sig-card { border-left-color:#60a5fa; }
+.lane-expired  .sig-card { border-left-color:#334155; opacity:.6; }
+
+.sig-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px; }
+.sig-sym { font-size:15px; font-weight:700; color:#a78bfa; }
+.sig-age { font-size:10px; color:#334155; }
+.sig-badges { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:7px; }
+
+/* score bar */
+.score-bar { display:flex; align-items:center; gap:8px; margin:7px 0; }
+.bar-track { flex:1; height:4px; background:#1e2533; border-radius:2px; overflow:hidden; }
+.bar-fill { height:100%; border-radius:2px; background:linear-gradient(90deg,#7c3aed,#a78bfa); }
+.score-lbl { font-size:10px; color:#64748b; white-space:nowrap; min-width:32px; text-align:right; }
+
+/* option box */
+.opt-box { background:#080b12; border:1px solid #1e2533; border-radius:6px; padding:8px 10px; margin:8px 0; display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; }
+.opt-row { font-size:11px; color:#64748b; }
+.opt-row span { color:#e2e8f0; font-weight:600; }
+.opt-row.full { grid-column:1/-1; }
+
+/* trade levels */
+.levels { margin:8px 0; }
+.lvl { display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid #1e2533; font-size:11px; }
+.lvl:last-child { border:none; }
+.lvl-lbl { color:#475569; }
+.lvl-val { font-weight:600; font-size:10px; max-width:200px; text-align:right; color:#94a3b8; }
+.lvl-val.entry { color:#a78bfa; }
+.lvl-val.sl { color:#f87171; }
+.lvl-val.t1 { color:#4ade80; }
+.lvl-val.t2 { color:#22c55e; }
+
+/* indicators */
+.ind-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px 10px; margin:8px 0; }
+.ind { font-size:10px; display:flex; justify-content:space-between; color:#475569; }
+.ind span { font-weight:600; }
+.ind span.ok { color:#22c55e; }
+.ind span.warn { color:#f59e0b; }
+.ind span.bad { color:#ef4444; }
+.ind span.neu { color:#94a3b8; }
+
+/* gates checklist */
+.gates { margin:8px 0; display:grid; grid-template-columns:1fr 1fr; gap:3px; }
+.gate-item { font-size:10px; display:flex; align-items:center; gap:4px; color:#475569; }
+.gate-item.pass { color:#4ade80; }
+.gate-item.fail { color:#334155; text-decoration:line-through; }
+
+/* reasons */
+.reasons { margin-top:7px; }
+.reason-item { font-size:10px; color:#64748b; padding:2px 0; line-height:1.5; }
+.reason-item::before { content:"• "; color:#475569; }
+
+/* actions */
+.sig-actions { display:flex; gap:6px; margin-top:9px; }
+
+/* alert card (Layer 2 candidate) */
+.alert-meta { font-size:11px; color:#64748b; margin-top:5px; line-height:1.7; }
+.alert-meta strong { color:#e2e8f0; }
+.alert-badge-row { display:flex; gap:5px; margin:5px 0; }
+
+/* auth notice */
+.auth-notice { background:#0d1117; border:1px solid #3b1c8c44; border-radius:8px; padding:12px 18px; margin-bottom:16px; font-size:12px; color:#94a3b8; display:flex; align-items:center; gap:12px; }
+.auth-notice a { color:#a78bfa; text-decoration:none; font-weight:600; }
+.risk-reason { font-size:11px; color:#f87171; margin-top:3px; }
+.risk-reason.ok { color:#22c55e; }
+.events li { font-size:11px; color:#f59e0b; list-style:none; padding:2px 0; }
+.events li::before { content:"⚠ "; }
 </style>
 </head>
 <body>
@@ -75,76 +164,143 @@
 
 <main>
   <div id="auth-notice" class="auth-notice" style="display:none">
-    <span>🔑 Kite token may be expired.</span>
+    <span>🔑 Kite token expired.</span>
     <a id="auth-link" href="/auth/login-url" target="_blank">Refresh token →</a>
-    <span style="color:#475569; margin-left:auto; font-size:11px">Tokens expire daily at 6 AM IST</span>
+    <span style="color:#334155;margin-left:auto;font-size:10px">Expires daily at 6 AM IST</span>
   </div>
 
-  <div class="grid">
-    <div class="card" id="regime-card">
+  <!-- Market Cards -->
+  <div class="mkt-grid">
+    <div class="mkt-card" id="card-regime">
       <h2>Market Regime</h2>
-      <div id="regime-content"><div class="empty">Loading…</div></div>
+      <div id="regime-content"><div class="skeleton" style="width:60%"></div><div class="skeleton" style="width:40%;margin-top:8px"></div></div>
     </div>
-    <div class="card" id="vix-card">
+    <div class="mkt-card" id="card-vix">
       <h2>VIX &amp; Environment</h2>
-      <div id="vix-content"><div class="empty">Loading…</div></div>
+      <div id="vix-content"><div class="skeleton" style="width:50%"></div><div class="skeleton" style="width:70%;margin-top:8px"></div></div>
     </div>
-    <div class="card" id="breadth-card">
+    <div class="mkt-card" id="card-breadth">
       <h2>Market Breadth</h2>
-      <div id="breadth-content"><div class="empty">Loading…</div></div>
+      <div id="breadth-content"><div class="skeleton" style="width:40%"></div><div class="skeleton" style="width:60%;margin-top:8px"></div></div>
     </div>
-    <div class="card" id="macro-card">
+    <div class="mkt-card" id="card-macro">
       <h2>Macro Risk</h2>
-      <div id="macro-content"><div class="empty">Loading…</div></div>
+      <div id="macro-content"><div class="skeleton" style="width:30%"></div><div class="skeleton" style="width:80%;margin-top:8px"></div></div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="section-header">
-      <h2>Signals <span id="signal-count" style="color:#64748b; font-weight:400; font-size:13px"></span></h2>
-      <div>
-        <button id="scan-btn" onclick="triggerScan()">▶ Scan Now</button>
-        <button id="refresh-btn" onclick="loadAll()">↻ Refresh</button>
-      </div>
+  <!-- Signal Pipeline -->
+  <div class="pipeline-bar">
+    <h2>Signal Pipeline</h2>
+    <div class="btn-row">
+      <span id="scan-status"></span>
+      <button id="scan-btn" onclick="triggerScan()">▶ Scan Now</button>
+      <button class="btn-sec" onclick="loadMarket()">↻ Market</button>
+      <button class="btn-sec" onclick="clearDone()">✕ Clear Done</button>
     </div>
-    <div id="signals-content"><div class="empty">No signals yet. Click "Scan Now" to run a scan.</div></div>
+  </div>
+
+  <div class="pipeline">
+    <div class="lane lane-alert">
+      <div class="lane-hdr">
+        <div class="lane-hdr-left"><span class="ldot"></span>Alert — Watching</div>
+        <span class="cnt" id="cnt-alert">0</span>
+      </div>
+      <div id="lane-alert-body"><div class="empty-lane">Run scan to populate</div></div>
+    </div>
+    <div class="lane lane-triggered">
+      <div class="lane-hdr">
+        <div class="lane-hdr-left"><span class="ldot"></span>Triggered — Entry</div>
+        <span class="cnt" id="cnt-triggered">0</span>
+      </div>
+      <div id="lane-triggered-body"><div class="empty-lane">No active signals</div></div>
+    </div>
+    <div class="lane lane-exit">
+      <div class="lane-hdr">
+        <div class="lane-hdr-left"><span class="ldot"></span>Exit — Booked</div>
+        <span class="cnt" id="cnt-exit">0</span>
+      </div>
+      <div id="lane-exit-body"><div class="empty-lane">No exits yet</div></div>
+    </div>
+    <div class="lane lane-expired">
+      <div class="lane-hdr">
+        <div class="lane-hdr-left"><span class="ldot"></span>Expired / Skipped</div>
+        <span class="cnt" id="cnt-expired">0</span>
+      </div>
+      <div id="lane-expired-body"><div class="empty-lane">None</div></div>
+    </div>
   </div>
 </main>
 
 <script>
 const API = '';
+const EXPIRE_MIN = 45;
+let state = JSON.parse(localStorage.getItem('fno_state') || '{}');
+function saveState() { localStorage.setItem('fno_state', JSON.stringify(state)); }
 
-async function get(path) {
-  const r = await fetch(API + path);
-  if (!r.ok) throw new Error(r.status);
-  return r.json();
+// ── Fetch with retry ──────────────────────────────────────────────
+async function get(path, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const r = await fetch(API + path);
+      if (!r.ok) throw new Error(r.status);
+      return await r.json();
+    } catch(e) {
+      if (i === retries - 1) throw e;
+      await delay(1200 * (i + 1));
+    }
+  }
+}
+const delay = ms => new Promise(r => setTimeout(r, ms));
+
+// ── Market hours check (IST) ──────────────────────────────────────
+function isMarketOpen() {
+  const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const m = ist.getHours() * 60 + ist.getMinutes();
+  return m >= 9 * 60 + 15 && m <= 15 * 60 + 30;
+}
+
+// ── Market cards ──────────────────────────────────────────────────
+async function loadMarket() {
+  await Promise.all([loadRegime(), loadBreadth(), loadMacro()]);
 }
 
 async function loadRegime() {
   try {
     const d = await get('/market/regime');
-    const regimeBadge = badge(d.regime_type);
-    const biasBadge   = badge(d.overall_bias);
+    const vc = d.vix < 15 ? 'vix-low' : d.vix < 22 ? 'vix-med' : 'vix-high';
     document.getElementById('regime-content').innerHTML = `
-      <div class="big-val">${regimeBadge}</div>
-      <div class="sub">Bias: ${biasBadge}</div>
-      <div class="sub" style="margin-top:8px; line-height:1.6; color:#94a3b8; font-size:12px">${d.reason || ''}</div>
-    `;
-
-    const vixClass = d.vix < 15 ? 'low' : d.vix < 22 ? 'med' : 'high';
-    document.getElementById('vix-content').innerHTML = `
-      <div class="vix-val ${vixClass}">${(+d.vix).toFixed(2)}</div>
-      <div class="sub">${d.vix_signal || ''}</div>
-      <div class="pill-row" style="margin-top:10px">
-        <span>CALL: ${badge2(d.call_buying_environment)}</span>
-        <span>PUT: ${badge2(d.put_buying_environment)}</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${badge(d.regime_type)} ${badge(d.overall_bias)}
       </div>
-      <div class="sub" style="margin-top:8px">Nifty: ${badge(d.nifty_bias)} &nbsp; BankNifty: ${badge(d.banknifty_bias)}</div>
-    `;
+      <div class="mkt-sub" style="margin-top:8px;line-height:1.7">${d.reason || ''}</div>
+      <div class="mkt-row" style="margin-top:10px">
+        <span style="display:inline-flex;align-items:center;gap:5px;flex-shrink:0">
+          <span style="font-size:11px;color:#475569">Nifty</span>${badge(d.nifty_bias)}
+        </span>
+        <span style="display:inline-flex;align-items:center;gap:5px;flex-shrink:0">
+          <span style="font-size:11px;color:#475569">BankNifty</span>${badge(d.banknifty_bias)}
+        </span>
+      </div>`;
+    document.getElementById('vix-content').innerHTML = `
+      <div class="mkt-val ${vc}">${(+d.vix).toFixed(2)}</div>
+      <div class="mkt-sub">${d.vix_signal || ''}</div>
+      <div class="mkt-row" style="margin-top:10px">
+        <span style="display:inline-flex;align-items:center;gap:5px;flex-shrink:0">
+          <span style="font-size:11px;color:#475569">CALL Buy</span>${badge2(d.call_buying_environment)}
+        </span>
+        <span style="display:inline-flex;align-items:center;gap:5px;flex-shrink:0">
+          <span style="font-size:11px;color:#475569">PUT Buy</span>${badge2(d.put_buying_environment)}
+        </span>
+      </div>
+      <div class="mkt-sub" style="margin-top:8px;color:${d.breadth_score>60?'#4ade80':d.breadth_score<40?'#f87171':'#94a3b8'}">
+        Breadth ${d.breadth_score?.toFixed(1)}% ${d.breadth_score>60?'▲ Bullish':d.breadth_score<40?'▼ Bearish':'→ Neutral'}
+      </div>`;
   } catch(e) {
-    document.getElementById('regime-content').innerHTML = errHtml(e);
-    document.getElementById('vix-content').innerHTML = errHtml(e);
-    if (String(e).includes('401') || String(e).includes('403')) showAuthNotice();
+    const msg = `<div style="color:#475569;font-size:12px;margin-top:8px">Retrying… (${e.message})</div>`;
+    document.getElementById('regime-content').innerHTML = msg;
+    document.getElementById('vix-content').innerHTML = msg;
+    if (String(e.message).includes('401') || String(e.message).includes('403')) showAuthNotice();
   }
 }
 
@@ -152,159 +308,365 @@ async function loadBreadth() {
   try {
     const d = await get('/market/breadth');
     const ratio = (+d.advance_decline_ratio).toFixed(2);
-    const score = (+d.breadth_score).toFixed(1);
+    const color = ratio >= 1.5 ? '#4ade80' : ratio <= 0.7 ? '#f87171' : '#f59e0b';
     document.getElementById('breadth-content').innerHTML = `
-      <div class="big-val" style="color:${ratio >= 1 ? '#4ade80' : '#f87171'}">${ratio}</div>
-      <div class="sub">A/D Ratio · Score: ${score}%</div>
-      <div class="pill-row" style="margin-top:10px; font-size:12px; color:#94a3b8">
-        <span style="color:#4ade80">▲ ${d.advances} Advances</span>
-        <span style="color:#f87171">▼ ${d.declines} Declines</span>
-        <span>— ${d.unchanged} Unchanged</span>
-      </div>
-    `;
+      <div class="mkt-val" style="color:${color}">${ratio}</div>
+      <div class="mkt-sub">A/D Ratio · Breadth ${(+d.breadth_score).toFixed(1)}%</div>
+      <div class="stat-row" style="margin-top:10px">
+        <div class="stat"><div class="stat-val" style="color:#4ade80">${d.advances}</div><div class="stat-lbl">Advances</div></div>
+        <div class="stat"><div class="stat-val" style="color:#f87171">${d.declines}</div><div class="stat-lbl">Declines</div></div>
+        <div class="stat"><div class="stat-val" style="color:#475569">${d.unchanged}</div><div class="stat-lbl">Unchanged</div></div>
+      </div>`;
   } catch(e) {
-    document.getElementById('breadth-content').innerHTML = errHtml(e);
+    document.getElementById('breadth-content').innerHTML = `<div style="color:#475569;font-size:12px;margin-top:8px">Retrying…</div>`;
   }
 }
 
 async function loadMacro() {
   try {
     const d = await get('/market/macro-risk');
-    const riskClass = d.is_high_risk ? 'HIGH' : 'LOW';
-    const events = (d.upcoming_events || []).map(e => `<li>${e}</li>`).join('');
+    const events = (d.upcoming_events||[]).map(e=>`<li>${e.name||e}</li>`).join('');
+    const fii = d.fii_net_flow_cr;
+    const fiiColor = fii > 0 ? '#4ade80' : fii < 0 ? '#f87171' : '#475569';
+    const fiiStr = fii != null ? `<span style="color:${fiiColor};font-weight:700">${fii >= 0 ? '+' : ''}${fii.toLocaleString('en-IN')}</span> Cr` : '—';
     document.getElementById('macro-content').innerHTML = `
-      <div class="big-val">${badge(riskClass)}</div>
-      <div class="sub" style="margin-top:8px">USD/INR: ${d.usdinr || '—'} &nbsp;|&nbsp; FII Flow: ₹${d.fii_net_flow_cr || '—'} Cr</div>
+      <div style="display:flex;align-items:center;gap:8px">${badge(d.is_high_risk?'HIGH':'LOW')}
+        <span style="font-size:11px;color:#475569">Macro Risk</span></div>
+      <div class="mkt-row" style="margin-top:10px;font-size:11px;gap:12px">
+        <div><div style="color:#475569;font-size:10px">USD/INR</div><div style="font-weight:700;color:#e2e8f0">${d.usdinr ? (+d.usdinr).toFixed(2) : '—'}</div></div>
+        <div><div style="color:#475569;font-size:10px">FII Flow</div><div style="font-weight:700">${fiiStr}</div></div>
+      </div>
       ${events ? `<ul class="events" style="margin-top:8px">${events}</ul>` : ''}
-      ${(d.reasons||[]).map(r => `<div class="risk-reason ${d.is_high_risk ? '' : 'ok'}">${r}</div>`).join('')}
-    `;
+      ${(d.reasons||[]).map(r=>`<div class="risk-reason ${d.is_high_risk?'':'ok'}">${r}</div>`).join('')}`;
   } catch(e) {
-    document.getElementById('macro-content').innerHTML = errHtml(e);
+    document.getElementById('macro-content').innerHTML = `<div style="color:#475569;font-size:12px;margin-top:8px">Retrying…</div>`;
   }
 }
 
-async function loadSignals() {
-  try {
-    const d = await get('/signals');
-    renderSignals(d.signals || []);
-  } catch(e) {
-    document.getElementById('signals-content').innerHTML = errHtml(e);
-  }
+// ── Pipeline state ────────────────────────────────────────────────
+function ingestSignals(sigs) {
+  const now = Date.now();
+  sigs.forEach(s => {
+    if (!state[s.id]) state[s.id] = { signal: s, stage: 'triggered', entryTime: now };
+    else state[s.id].signal = s;
+  });
+  saveState();
 }
 
-function renderSignals(sigs) {
-  const el = document.getElementById('signals-content');
-  const count = document.getElementById('signal-count');
-  count.textContent = sigs.length ? `(${sigs.length})` : '';
-  if (!sigs.length) {
-    el.innerHTML = '<div class="empty">No signals in this scan. Markets may be closed or conditions unmet.</div>';
-    return;
-  }
-  const rows = sigs.map(s => {
-    const conf = s.confidence === 'A+' ? 'Aplus' : s.confidence;
-    const opt = s.option || {};
-    const reasons = (s.reasons || []).map(r => `<div>• ${r}</div>`).join('');
-    return `<tr>
-      <td class="sym">${s.symbol}</td>
-      <td>${badge(s.direction)}</td>
-      <td><span class="badge ${conf}">${s.confidence}</span></td>
-      <td>
-        <div class="gate-bar"><div class="gate-fill" style="width:${s.gate_score}%"></div></div>
-        <span style="font-size:11px; color:#64748b; margin-left:6px">${s.gate_score}%</span>
-      </td>
-      <td class="num">${opt.strike ? fmt(opt.strike) : '—'}</td>
-      <td style="font-size:11px; color:#64748b">${opt.expiry ? opt.expiry.slice(0,10) : '—'}</td>
-      <td class="num">${opt.premium != null ? fmt(opt.premium) : '—'}</td>
-      <td style="font-size:11px; color:#94a3b8; max-width:160px">${s.entry_zone || '—'}</td>
-      <td style="font-size:11px; color:#f87171; max-width:160px">${s.stop_loss || '—'}</td>
-      <td style="font-size:11px; color:#4ade80">${s.target_1 || '—'}</td>
-      <td style="font-size:11px; color:#34d399">${s.target_2 || '—'}</td>
-      <td class="num" style="color:#a78bfa">${s.rr_ratio || '—'}</td>
-      <td class="reasons">${reasons}</td>
-    </tr>`;
-  }).join('');
-
-  el.innerHTML = `<table>
-    <thead><tr>
-      <th>Symbol</th><th>Dir</th><th>Grade</th><th>Score</th>
-      <th>Strike</th><th>Expiry</th><th>Premium</th>
-      <th>Entry</th><th>Stop Loss</th><th>Target 1</th><th>Target 2</th><th>R:R</th><th>Reasons</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>`;
+function autoExpire() {
+  const now = Date.now();
+  Object.values(state).forEach(item => {
+    if (item.stage === 'triggered' && (now - item.entryTime) / 60000 >= EXPIRE_MIN)
+      item.stage = 'expired';
+  });
+  saveState();
 }
 
-async function triggerScan() {
+function markExit(id)    { if(state[id]){ state[id].stage='exit';    saveState(); renderPipeline(lastCandidates); }}
+function markExpired(id) { if(state[id]){ state[id].stage='expired'; saveState(); renderPipeline(lastCandidates); }}
+function clearDone() {
+  Object.keys(state).forEach(id => { if(['exit','expired'].includes(state[id].stage)) delete state[id]; });
+  saveState(); renderPipeline(lastCandidates);
+}
+
+let lastCandidates = [];
+
+function renderPipeline(candidates) {
+  lastCandidates = candidates;
+  autoExpire();
+
+  // Alert lane (already sorted by rs_score from backend)
+  const alertHTML = candidates.length
+    ? candidates.map((c, i) => alertCard(c, i + 1)).join('')
+    : '<div class="empty-lane">Waiting for scan…</div>';
+  document.getElementById('lane-alert-body').innerHTML = alertHTML;
+  document.getElementById('cnt-alert').textContent = candidates.length;
+
+  // Sort by confidence (A+ > A- > B) then gate_score descending
+  const confOrder = { 'A+': 0, 'A-': 1, 'B': 2 };
+  const sortByConf = (a, b) => {
+    const oa = confOrder[a.signal?.confidence] ?? 3;
+    const ob = confOrder[b.signal?.confidence] ?? 3;
+    if (oa !== ob) return oa - ob;
+    return (b.signal?.gate_score || 0) - (a.signal?.gate_score || 0);
+  };
+
+  const triggered = [], exited = [], expired = [];
+  Object.values(state).forEach(item => {
+    if (item.stage === 'triggered') triggered.push(item);
+    else if (item.stage === 'exit') exited.push(item);
+    else expired.push(item);
+  });
+  triggered.sort(sortByConf);
+  exited.sort(sortByConf);
+  expired.sort(sortByConf);
+
+  document.getElementById('lane-triggered-body').innerHTML =
+    triggered.map((item, i) => triggeredCard(item, i + 1)).join('') || '<div class="empty-lane">No active signals</div>';
+  document.getElementById('cnt-triggered').textContent = triggered.length;
+
+  document.getElementById('lane-exit-body').innerHTML =
+    exited.map((item, i) => exitCard(item, i + 1)).join('') || '<div class="empty-lane">No exits yet</div>';
+  document.getElementById('cnt-exit').textContent = exited.length;
+
+  document.getElementById('lane-expired-body').innerHTML =
+    expired.map((item, i) => expiredCard(item, i + 1)).join('') || '<div class="empty-lane">None</div>';
+  document.getElementById('cnt-expired').textContent = expired.length;
+}
+
+// ── Card renderers ────────────────────────────────────────────────
+function alertCard(c, rank) {
+  const rs = (c.rs_score * 100).toFixed(1);
+  const rsColor = c.rs_score > 0 ? '#4ade80' : '#f87171';
+  return `<div class="sig-card">
+    <div class="sig-top">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;font-weight:700;color:#475569;min-width:18px">#${rank}</span>
+        <div class="sig-sym">${c.symbol}</div>
+      </div>
+    </div>
+    <div class="alert-badge-row">${badge(c.direction)}</div>
+    <div class="alert-meta">
+      RS: <strong style="color:${rsColor}">${+rs > 0 ? '+' : ''}${rs}%</strong>
+      &nbsp;·&nbsp; Vol: <strong>${c.volume_ratio}×</strong>
+    </div>
+    <div class="alert-meta" style="color:#334155;margin-top:3px;font-size:10px">${c.reason}</div>
+  </div>`;
+}
+
+function triggeredCard(item, rank) {
+  const s = item.signal;
+  const opt = s.option || {};
+  const age = Math.round((Date.now() - item.entryTime) / 60000);
+  const left = Math.max(0, EXPIRE_MIN - age);
+  const conf = s.confidence === 'A+' ? 'Aplus' : s.confidence === 'A-' ? 'Aminus' : 'B';
+
+  const rsi = s.rsi_value || 0;
+  const rsiColor = rsi > 60 ? 'ok' : rsi < 40 ? 'bad' : 'neu';
+  const divStr = s.divergence_detected
+    ? `${(s.divergence_strength * 100).toFixed(0)}%`
+    : 'No';
+
+  // MTF gate labels
+  const gateLabels = {
+    regime_supportive: 'Regime OK',
+    rs_positive: 'RS+', rs_negative: 'RS-',
+    rsi_divergence: 'RSI Divergence',
+    htf_trend_bullish: 'Daily Uptrend', htf_trend_bearish: 'Daily Downtrend',
+    macd_bull_cross: 'MACD ↑ Cross', macd_bear_cross: 'MACD ↓ Cross',
+    above_vwap: 'Above VWAP', below_vwap: 'Below VWAP',
+    volume_expansion: 'Volume+',
+    put_writing_or_short_covering: 'Put Writing',
+    call_writing_or_short_buildup: 'Call Writing',
+    pcr_supportive: 'PCR Bullish', pcr_bearish: 'PCR Bearish',
+  };
+  const gates = s.gates_passed || {};
+  const gateHTML = Object.entries(gates).map(([k, v]) =>
+    `<div class="gate-item ${v ? 'pass' : 'fail'}">${v ? '✓' : '✗'} ${gateLabels[k] || k}</div>`
+  ).join('');
+
+  return `<div class="sig-card">
+    <!-- Row 1: symbol + rank + timer -->
+    <div class="sig-top">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;font-weight:700;color:#475569;min-width:18px">#${rank}</span>
+        <div class="sig-sym">${s.symbol}</div>
+        ${badge(s.direction)}
+      </div>
+      <div class="sig-age">${age}m · ${left}m left</div>
+    </div>
+
+    <!-- Row 2: confidence prominently -->
+    <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+      <span class="badge ${conf}" style="font-size:12px;padding:3px 10px">${s.confidence} · ${s.gate_score}%</span>
+      <div class="score-bar" style="flex:1;margin:0">
+        <div class="bar-track"><div class="bar-fill" style="width:${s.gate_score}%"></div></div>
+      </div>
+    </div>
+
+    <!-- Row 3: strike + premium (the trade instrument) -->
+    ${opt.strike ? `<div style="background:#080b12;border:1px solid #1e2533;border-radius:6px;padding:8px 10px;margin:6px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+      <div>
+        <div style="font-size:10px;color:#475569">Strike</div>
+        <div style="font-size:16px;font-weight:700;color:#a78bfa">${fmt(opt.strike)} <span style="color:#94a3b8;font-size:13px">${opt.type||''}</span></div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:#475569">Premium</div>
+        <div style="font-size:16px;font-weight:700;color:#f59e0b">₹${fmt(opt.premium)}</div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:#475569">Expiry</div>
+        <div style="font-size:12px;font-weight:600;color:#e2e8f0">${opt.expiry ? opt.expiry.slice(0,10) : '—'}</div>
+        <div style="font-size:10px;color:#475569">DTE ${opt.dte ?? '—'}${opt.iv ? ' · IV ' + opt.iv.toFixed(1) + '%' : ''}</div>
+      </div>
+    </div>` : ''}
+
+    <!-- Row 4: entry / SL / targets — the core trade levels -->
+    <div class="levels">
+      <div class="lvl"><span class="lvl-lbl">Entry</span><span class="lvl-val entry">${s.entry_zone||'—'}</span></div>
+      <div class="lvl"><span class="lvl-lbl">Stop Loss</span><span class="lvl-val sl">${s.stop_loss||'—'}</span></div>
+      <div class="lvl"><span class="lvl-lbl">Target 1</span><span class="lvl-val t1">${s.target_1||'—'}</span></div>
+      <div class="lvl"><span class="lvl-lbl">Target 2</span><span class="lvl-val t2">${s.target_2||'—'}</span></div>
+      <div class="lvl"><span class="lvl-lbl">R:R</span><span class="lvl-val" style="color:#a78bfa">${s.rr_ratio||'—'}</span></div>
+    </div>
+
+    <!-- Row 5: key MTF indicators -->
+    <div class="ind-grid" style="margin:6px 0">
+      <div class="ind">Divergence <span class="${s.divergence_detected?'ok':'bad'}">${divStr}</span></div>
+      <div class="ind">HTF Trend <span class="${s.htf_trend==='BULLISH'?'ok':s.htf_trend==='BEARISH'?'bad':'neu'}">${s.htf_trend||'—'}</span></div>
+      <div class="ind">MACD <span class="neu" style="font-size:9px">${s.macd_status||'—'}</span></div>
+      <div class="ind">VWAP <span class="${s.vwap_status?.includes('Above')?'ok':'bad'}">${s.vwap_status?.split(' ')[0]||'—'}</span></div>
+      <div class="ind">RSI <span class="${rsiColor}">${rsi.toFixed(1)}</span></div>
+      <div class="ind">VIX <span class="${s.vix_level<15?'ok':s.vix_level>22?'bad':'neu'}">${s.vix_level?.toFixed(1)||'—'}</span></div>
+      <div class="ind">PCR <span class="neu">${s.pcr_value?.toFixed(2)||'—'}</span></div>
+      <div class="ind">OI <span class="neu" style="font-size:9px">${(s.oi_interpretation||'').replace(/_/g,' ')}</span></div>
+    </div>
+
+    <!-- Row 6: gate checklist -->
+    ${gateHTML ? `<div class="gates">${gateHTML}</div>` : ''}
+
+    <!-- Row 7: reasons -->
+    ${s.reasons?.length ? `<div class="reasons">${s.reasons.map(r=>`<div class="reason-item">${r}</div>`).join('')}</div>` : ''}
+
+    <!-- Row 8: position + timing -->
+    <div style="font-size:10px;color:#475569;margin-top:6px;border-top:1px solid #1e2533;padding-top:6px">
+      ${s.position_sizing||''}<br>${s.time_sensitivity||''}
+    </div>
+
+    <div class="sig-actions">
+      <button class="btn-sec btn-sm" style="color:#60a5fa;border-color:#1e4070" onclick="markExit('${s.id}')">✓ Mark Exit</button>
+      <button class="btn-sec btn-sm" onclick="markExpired('${s.id}')">✕ Skip</button>
+    </div>
+  </div>`;
+}
+
+function exitCard(item, rank) {
+  const s = item.signal;
+  const opt = s.option || {};
+  const conf = s.confidence === 'A+' ? 'Aplus' : s.confidence === 'A-' ? 'Aminus' : 'B';
+  return `<div class="sig-card">
+    <div class="sig-top">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;font-weight:700;color:#475569;min-width:18px">#${rank}</span>
+        <div class="sig-sym">${s.symbol}</div>
+      </div>
+      <span style="font-size:10px;color:#60a5fa">Booked</span>
+    </div>
+    <div class="sig-badges">${badge(s.direction)}<span class="badge ${conf}">${s.confidence} · ${s.gate_score}%</span></div>
+    ${opt.strike ? `<div class="opt-box">
+      <div class="opt-row">Strike <span>${fmt(opt.strike)} ${opt.type||''}</span></div>
+      <div class="opt-row">Entry Premium <span style="color:#f59e0b">₹${fmt(opt.premium)}</span></div>
+    </div>` : ''}
+    <div class="levels">
+      <div class="lvl"><span class="lvl-lbl">T1</span><span class="lvl-val t1">${s.target_1||'—'}</span></div>
+      <div class="lvl"><span class="lvl-lbl">T2</span><span class="lvl-val t2">${s.target_2||'—'}</span></div>
+    </div>
+  </div>`;
+}
+
+function expiredCard(item, rank) {
+  const s = item.signal;
+  const conf = s.confidence === 'A+' ? 'Aplus' : s.confidence === 'A-' ? 'Aminus' : 'B';
+  return `<div class="sig-card">
+    <div class="sig-top">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;font-weight:700;color:#475569;min-width:18px">#${rank}</span>
+        <div class="sig-sym">${s.symbol}</div>
+      </div>
+      ${badge(s.direction)}
+    </div>
+    <div style="margin-top:4px"><span class="badge ${conf}">${s.confidence} · ${s.gate_score}%</span></div>
+    <div class="mkt-sub" style="margin-top:4px;font-size:10px">${s.entry_zone||''}</div>
+  </div>`;
+}
+
+// ── Scan ──────────────────────────────────────────────────────────
+async function triggerScan(silent = false) {
   const btn = document.getElementById('scan-btn');
-  btn.disabled = true;
-  btn.textContent = '⏳ Scanning…';
+  const status = document.getElementById('scan-status');
+  if (!silent) { btn.disabled = true; btn.textContent = '⏳ Scanning…'; }
+  status.textContent = 'Scanning…';
   try {
     const r = await fetch(API + '/scan', { method: 'POST' });
     const d = await r.json();
-    renderSignals(d.signals || []);
+    ingestSignals(d.signals || []);
+    renderPipeline(d.candidates || []);
     updateLastScan();
+    status.textContent = `${d.count} signal(s) found`;
+    setTimeout(() => { status.textContent = ''; }, 4000);
   } catch(e) {
-    alert('Scan failed: ' + e);
+    status.textContent = 'Scan failed';
   } finally {
-    btn.disabled = false;
-    btn.textContent = '▶ Scan Now';
+    btn.disabled = false; btn.textContent = '▶ Scan Now';
   }
 }
 
 async function loadAll() {
-  await Promise.all([loadRegime(), loadBreadth(), loadMacro(), loadSignals()]);
-  updateLastScan();
+  await loadMarket();
+  // Auto-scan on load during market hours
+  if (isMarketOpen()) {
+    await triggerScan(true);
+  } else {
+    // Outside market hours: just restore state from localStorage
+    renderPipeline([]);
+    updateLastScan();
+  }
 }
 
 function updateLastScan() {
-  document.getElementById('last-scan').textContent = 'Last updated: ' + new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  document.getElementById('last-scan').textContent = 'Updated ' +
+    new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
 }
 
+// ── Helpers ───────────────────────────────────────────────────────
 function badge(val) {
-  if (!val) return '—';
-  const cls = val.replace(/[^A-Z+]/gi,'').replace('+','plus');
-  return `<span class="badge ${val.replace('+','plus')}">${val}</span>`;
+  if (!val && val !== false) return '';
+  const cls = String(val).replace(/[^A-Z_+\-]/gi, '').replace('+','plus').replace('-','minus');
+  return `<span class="badge ${cls}">${val}</span>`;
 }
 function badge2(val) {
-  if (val === true || val === 'true') return `<span class="badge BULL">✓ Yes</span>`;
-  if (val === false || val === 'false') return `<span class="badge BEAR">✗ No</span>`;
+  if (val === true  || val === 'true')  return `<span class="badge BULLISH">✓ Yes</span>`;
+  if (val === false || val === 'false') return `<span class="badge BEARISH">✗ No</span>`;
   return `<span class="badge NEUTRAL">${val}</span>`;
 }
 function fmt(v) {
-  if (v == null || v === undefined) return '—';
-  return (+v).toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 2});
-}
-function errHtml(e) {
-  return `<div class="empty" style="color:#f87171">Error: ${e.message || e}</div>`;
+  if (v == null) return '—';
+  const n = +v;
+  return isNaN(n) ? String(v) : n.toLocaleString('en-IN', {maximumFractionDigits:2});
 }
 function showAuthNotice() {
-  const el = document.getElementById('auth-notice');
-  el.style.display = 'flex';
+  document.getElementById('auth-notice').style.display = 'flex';
   fetch('/auth/login-url').then(r=>r.json()).then(d=>{
     document.getElementById('auth-link').href = d.login_url;
   }).catch(()=>{});
 }
 
-// WebSocket live updates
+// ── WebSocket ─────────────────────────────────────────────────────
 function connectWS() {
   const dot = document.getElementById('ws-dot');
   const label = document.getElementById('ws-label');
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const ws = new WebSocket(`${proto}//${location.host}/ws/alerts`);
-  ws.onopen = () => { dot.classList.add('live'); label.textContent = 'Live'; };
+  ws.onopen  = () => { dot.classList.add('live'); label.textContent = 'Live'; };
   ws.onclose = () => { dot.classList.remove('live'); label.textContent = 'Reconnecting…'; setTimeout(connectWS, 3000); };
   ws.onerror = () => ws.close();
-  ws.onmessage = (ev) => {
+  ws.onmessage = async (ev) => {
     try {
       const msg = JSON.parse(ev.data);
-      if (msg.type === 'SIGNALS') { renderSignals(msg.signals || []); updateLastScan(); }
+      if (msg.type === 'SIGNALS') {
+        ingestSignals(msg.signals || []);
+        const cands = await get('/signals/stage/candidates').catch(()=>({candidates:[]}));
+        renderPipeline(cands.candidates || []);
+        updateLastScan();
+      }
     } catch(_) {}
-    setInterval(() => ws.send('ping'), 30000);
   };
+  setInterval(() => { if (ws.readyState === 1) ws.send('ping'); }, 25000);
 }
 
-// Auto-refresh market cards every 2 minutes
-setInterval(() => { loadRegime(); loadBreadth(); loadMacro(); }, 120000);
+// Auto-refresh market cards every 90s, pipeline every 30s
+setInterval(loadMarket, 90000);
+setInterval(() => { if(isMarketOpen()) renderPipeline(lastCandidates); }, 30000);
 
 loadAll();
 connectWS();

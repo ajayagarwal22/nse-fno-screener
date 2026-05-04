@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Query
 from typing import Optional
-from app.screener import run_scan
+from app.screener import run_scan, get_candidates
 from app.engines.entry_trigger import TradeType
+from app.engines.stock_selector import Candidacy
 
 router = APIRouter(prefix="/signals", tags=["signals"])
 
@@ -59,6 +60,9 @@ def _serialize(s) -> dict:
         "vwap_status": s.vwap_status,
         "oi_interpretation": s.oi_interpretation,
         "pcr_value": s.pcr_value,
+        "divergence_detected": s.divergence_detected,
+        "divergence_strength": s.divergence_strength,
+        "htf_trend": s.htf_trend,
         "option": {
             "strike": s.option.strike,
             "expiry": s.option.expiry.isoformat(),
@@ -78,3 +82,22 @@ async def get_signal(signal_id: str):
             return _serialize(s)
     from fastapi import HTTPException
     raise HTTPException(status_code=404, detail="Signal not found")
+
+
+@router.get("/stage/candidates")
+async def get_alert_candidates():
+    """Layer 2 watchlist — stocks shortlisted but not yet fully triggered."""
+    candidates = get_candidates()
+    return {
+        "count": len(candidates),
+        "candidates": [
+            {
+                "symbol": c.symbol,
+                "direction": "CALL" if c.candidacy == Candidacy.BULLISH else "PUT",
+                "rs_score": c.rs_score,
+                "volume_ratio": c.volume_ratio,
+                "reason": c.reason,
+            }
+            for c in candidates
+        ],
+    }
