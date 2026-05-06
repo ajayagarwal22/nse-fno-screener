@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from app.config import settings
-from app.routers import market, scan, signals, option_chain, export
+from app.routers import market, scan, signals, option_chain, export, auth
 from app.routers.signals import update_signals
 from app.scheduler import init_scheduler, scheduler, set_signals_callback
 
@@ -102,6 +102,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(market.router)
 app.include_router(scan.router)
 app.include_router(signals.router)

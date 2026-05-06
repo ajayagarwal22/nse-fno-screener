@@ -16,6 +16,15 @@ header h1 { font-size: 16px; font-weight: 700; color: #a78bfa; letter-spacing: 0
 #ws-dot.live { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
 #last-scan { font-size: 11px; color: #334155; }
 
+/* ── Index ticker bar ── */
+#index-bar { background: #0a0e18; border-bottom: 1px solid #1e2533; padding: 7px 24px; display: flex; gap: 32px; font-size: 12px; }
+.idx-item { display: flex; align-items: center; gap: 8px; }
+.idx-name { color: #64748b; font-weight: 600; letter-spacing: 0.5px; font-size: 11px; }
+.idx-price { font-weight: 700; color: #e2e8f0; font-variant-numeric: tabular-nums; }
+.idx-change { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.idx-change.up { color: #22c55e; } .idx-change.dn { color: #ef4444; } .idx-change.flat { color: #64748b; }
+.idx-sep { width: 1px; background: #1e2533; margin: 0 8px; align-self: stretch; }
+
 /* ── Layout ── */
 main { padding: 18px 20px; max-width: 1600px; margin: 0 auto; }
 
@@ -162,6 +171,14 @@ button:disabled { opacity:.5; cursor:not-allowed; }
   </div>
 </header>
 
+<div id="index-bar">
+  <div class="idx-item"><span class="idx-name">NIFTY</span><span class="idx-price" id="idx-NIFTY">—</span><span class="idx-change flat" id="idx-NIFTY-chg">—</span></div>
+  <div class="idx-item"><span class="idx-name">SENSEX</span><span class="idx-price" id="idx-SENSEX">—</span><span class="idx-change flat" id="idx-SENSEX-chg">—</span></div>
+  <div class="idx-item"><span class="idx-name">BANKNIFTY</span><span class="idx-price" id="idx-BANKNIFTY">—</span><span class="idx-change flat" id="idx-BANKNIFTY-chg">—</span></div>
+  <div class="idx-sep"></div>
+  <div class="idx-item"><span class="idx-name">NIFTY FUT</span><span class="idx-price" id="idx-NIFTY FUT">—</span><span class="idx-change flat" id="idx-NIFTY FUT-chg">—</span></div>
+</div>
+
 <main>
   <div id="auth-notice" class="auth-notice" style="display:none">
     <span>🔑 Kite token expired.</span>
@@ -262,7 +279,31 @@ function isMarketOpen() {
 
 // ── Market cards ──────────────────────────────────────────────────
 async function loadMarket() {
-  await Promise.all([loadRegime(), loadBreadth(), loadMacro()]);
+  await Promise.all([loadRegime(), loadBreadth(), loadMacro(), loadIndices()]);
+}
+
+function _setIfChanged(el, text) { if (el && el.textContent !== text) el.textContent = text; }
+
+let _idxBusy = false;
+async function loadIndices() {
+  if (_idxBusy) return;
+  _idxBusy = true;
+  try {
+    const d = await get('/market/indices');
+    for (const idx of (d.indices || [])) {
+      const priceEl = document.getElementById('idx-' + idx.name);
+      const chgEl   = document.getElementById('idx-' + idx.name + '-chg');
+      if (!priceEl) continue;
+      const priceStr = idx.ltp.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      const sign = idx.change >= 0 ? '+' : '';
+      const chgStr = `${sign}${idx.change.toFixed(2)} (${sign}${idx.change_pct.toFixed(2)}%)`;
+      const cls = 'idx-change ' + (idx.change > 0 ? 'up' : idx.change < 0 ? 'dn' : 'flat');
+      _setIfChanged(priceEl, priceStr);
+      _setIfChanged(chgEl, chgStr);
+      if (chgEl && chgEl.className !== cls) chgEl.className = cls;
+    }
+  } catch(e) {}
+  finally { _idxBusy = false; }
 }
 
 async function loadRegime() {
@@ -665,8 +706,9 @@ function connectWS() {
   setInterval(() => { if (ws.readyState === 1) ws.send('ping'); }, 25000);
 }
 
-// Auto-refresh market cards every 90s, pipeline every 30s
+// Auto-refresh market cards every 90s, indices + pipeline every 30s
 setInterval(loadMarket, 90000);
+setInterval(loadIndices, 1000);
 setInterval(() => { if(isMarketOpen()) renderPipeline(lastCandidates); }, 30000);
 
 loadAll();

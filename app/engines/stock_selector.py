@@ -3,6 +3,7 @@
 Filters the full NSE F&O universe to ranked long/short candidates based on
 relative strength, volume expansion, option chain liquidity, and OI quality.
 """
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -12,6 +13,10 @@ import pandas as pd
 from app.config import settings
 from app.data.kite_client import kite_client
 from app.engines.market_regime import Bias, MarketRegime
+
+# Option chain liquidity changes slowly — cache result per symbol for 30 min
+_liquidity_cache: dict[str, tuple[bool, float]] = {}  # symbol -> (is_liquid, ts)
+_LIQUIDITY_TTL = 1800
 
 # NSE indices screened for options — ordered by liquidity / priority.
 # SENSEX (BSE) requires BFO exchange handling and is not yet supported.
@@ -60,21 +65,30 @@ def _volume_expansion(df: pd.DataFrame, multiplier: float) -> tuple[bool, float]
 
 
 def _check_option_liquidity(symbol: str) -> bool:
-    """Quick check: does the nearest expiry option chain meet OI + spread thresholds?"""
+    """Check option chain liquidity. Result cached for 30 min — liquidity
+    rarely changes intraday and this avoids 200 quote calls per scan."""
+    cached = _liquidity_cache.get(symbol)
+    if cached and time.time() - cached[1] < _LIQUIDITY_TTL:
+        return cached[0]
     try:
         chain = kite_client.get_option_chain(symbol)
         if chain.empty:
-            return False
-        atm_rows = chain.nlargest(10, "oi")
-        if atm_rows["oi"].max() < settings.min_oi_threshold:
-            return False
-        atm_rows = atm_rows[atm_rows["ltp"] > 0]
-        if atm_rows.empty:
-            return False
-        spread_pct = ((atm_rows["ask"] - atm_rows["bid"]) / atm_rows["ltp"].clip(lower=0.01)) * 100
-        return spread_pct.median() < settings.max_bid_ask_spread_pct * 5
+            result = False
+        else:
+            atm_rows = chain.nlargest(10, "oi")
+            if atm_rows["oi"].max() < settings.min_oi_threshold:
+                result = False
+            else:
+                atm_rows = atm_rows[atm_rows["ltp"] > 0]
+                if atm_rows.empty:
+                    result = False
+                else:
+                    spread_pct = ((atm_rows["ask"] - atm_rows["bid"]) / atm_rows["ltp"].clip(lower=0.01)) * 100
+                    result = spread_pct.median() < settings.max_bid_ask_spread_pct * 5
     except Exception:
-        return False
+        result = False
+    _liquidity_cache[symbol] = (result, time.time())
+    return result
 
 
 def _build_index_candidates(

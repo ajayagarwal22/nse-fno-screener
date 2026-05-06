@@ -1,5 +1,6 @@
 """Zerodha KiteConnect wrapper providing clean async-friendly interfaces."""
 import asyncio
+import time
 from datetime import date, datetime, timedelta
 from functools import lru_cache
 from typing import Optional
@@ -8,6 +9,11 @@ import pandas as pd
 from kiteconnect import KiteConnect
 
 from app.config import settings
+
+# Short-lived OHLCV cache — prevents duplicate fetches within a single scan cycle.
+# Key: (instrument_token, interval). TTL: 300 s (one scan window).
+_ohlcv_cache: dict[tuple, tuple] = {}  # key -> (df, fetched_at)
+_OHLCV_TTL = 300
 from app.data import cache
 
 # Maps our option-chain symbol names to the correct Kite quote key.
@@ -85,7 +91,17 @@ class KiteClient:
         from_date: Optional[date] = None,
         to_date: Optional[date] = None,
     ) -> pd.DataFrame:
-        """Fetch historical OHLCV candles for an instrument."""
+        """Fetch historical OHLCV candles. Results are cached for 300 s when
+        no explicit date range is given, preventing duplicate Kite API calls
+        within the same scan cycle."""
+        explicit_range = from_date is not None or to_date is not None
+
+        if not explicit_range:
+            key = (instrument_token, interval)
+            cached = _ohlcv_cache.get(key)
+            if cached and time.time() - cached[1] < _OHLCV_TTL:
+                return cached[0]
+
         if to_date is None:
             to_date = datetime.now()
         if from_date is None:
@@ -98,10 +114,13 @@ class KiteClient:
             interval=interval,
         )
         df = pd.DataFrame(records)
-        if df.empty:
-            return df
-        df.set_index("date", inplace=True)
-        df.index = pd.to_datetime(df.index)
+        if not df.empty:
+            df.set_index("date", inplace=True)
+            df.index = pd.to_datetime(df.index)
+
+        if not explicit_range:
+            _ohlcv_cache[(instrument_token, interval)] = (df, time.time())
+
         return df
 
     # ------------------------------------------------------------------

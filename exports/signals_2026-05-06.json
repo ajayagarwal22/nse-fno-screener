@@ -3265,5 +3265,39 @@
       "VIX 15.0 (NORMAL)"
     ],
     "oi_interpretation": "NEUTRAL"
+  },
+  {
+    "id": "a4b52126-ac1c-4774-a16c-daf250149b77",
+    "timestamp": "2026-05-06T15:16:03.445637",
+    "symbol": "HCLTECH",
+    "direction": "PUT",
+    "trade_type": "INTRADAY",
+    "confidence": "B",
+    "gate_score": 55.0,
+    "strike": null,
+    "expiry": null,
+    "option_type": null,
+    "premium": null,
+    "iv": null,
+    "entry_zone": "Premium breakdown below 1188.10 zone",
+    "stop_loss": "Spot reclaims VWAP or 1194.04",
+    "target_1": "1182.16 (1:1 RR)",
+    "target_2": "1176.22 (1:2 RR)",
+    "rr_ratio": "1:2",
+    "position_sizing": "Half position (0.5\u20131% capital)",
+    "regime_type": "TRENDING_BULLISH",
+    "vix_level": 15.0,
+    "rsi_value": 39.265490762077334,
+    "pcr_value": 0.49,
+    "reasons": [
+      "Daily trend BEARISH",
+      "Price below VWAP (1198.25)",
+      "MACD histogram flipped bearish (-0.04)",
+      "OI: NEUTRAL",
+      "Heavy CE writing at 1300",
+      "PCR 0.49 (BEARISH)",
+      "VIX 15.0"
+    ],
+    "oi_interpretation": "NEUTRAL"
   }
 ]
