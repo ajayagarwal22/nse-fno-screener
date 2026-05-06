@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 
 NSE_VIX_URL = "https://www.nseindia.com/api/allIndices"
-NSE_ADVANCE_DECLINE_URL = "https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050"
+NSE_ADVANCE_DECLINE_URL = "https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%20500"
 
 _HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
@@ -65,7 +65,7 @@ def fetch_vix() -> VIXData:
 
 
 def fetch_market_breadth() -> MarketBreadth:
-    """Fetch Nifty 50 advance/decline from NSE."""
+    """Fetch Nifty 500 advance/decline from NSE."""
     try:
         with httpx.Client(headers=_HEADERS, timeout=10, follow_redirects=True) as client:
             resp = client.get(NSE_ADVANCE_DECLINE_URL)

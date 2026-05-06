@@ -593,6 +593,7 @@ async function triggerScan(silent = false) {
     renderPipeline(d.candidates || []);
     updateLastScan();
     status.textContent = `${d.count} signal(s) found`;
+    loadMarket();  // refresh regime/VIX cards after scan updates regime cache
     setTimeout(() => { status.textContent = ''; }, 4000);
   } catch(e) {
     status.textContent = 'Scan failed';

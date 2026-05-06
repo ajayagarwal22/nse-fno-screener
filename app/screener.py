@@ -77,12 +77,6 @@ async def run_scan(trade_type: TradeType = TradeType.INTRADAY) -> list[Signal]:
                 Direction.CALL if candidate.candidacy == Candidacy.BULLISH else Direction.PUT
             )
 
-            # Skip if regime doesn't support this direction
-            if direction == Direction.CALL and not regime.call_buying_environment:
-                continue
-            if direction == Direction.PUT and not regime.put_buying_environment:
-                continue
-
             # --- Layer 3: Technical confluence (MTF) ---
             token = candidate.instrument_token
             df_5min = kite_client.get_ohlcv(token, interval="5minute")

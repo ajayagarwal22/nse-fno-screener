@@ -365,8 +365,11 @@ def score_bullish_confluence(
     # HTF trend
     htf_trend, htf_ema = assess_htf_trend(df_htf)
 
-    # MTF RSI divergence — PRIMARY signal
-    bull_div, div_strength = detect_bullish_divergence(df_mtf) if df_mtf is not None else (False, 0.0)
+    # MTF RSI divergence — PRIMARY signal (pivot_right=0: detect on current bar, no lag)
+    bull_div, div_strength = (
+        detect_bullish_divergence(df_mtf, pivot_right=0, lookback=80)
+        if df_mtf is not None else (False, 0.0)
+    )
 
     # LTF confirmation
     ltf = score_ltf_confirmation(df_ltf) if df_ltf is not None else {}
@@ -390,11 +393,6 @@ def score_bullish_confluence(
     }
 
     raw_score = sum(weights[k] for k, v in gates.items() if v)
-
-    # Hard cap: without RSI divergence score cannot exceed 40
-    if not bull_div:
-        raw_score = min(raw_score, 40)
-
     direction = "BULLISH" if raw_score >= 50 else "NEUTRAL"
 
     return ConfluenceResult(
@@ -424,7 +422,11 @@ def score_bearish_confluence(
     """
     htf_trend, htf_ema = assess_htf_trend(df_htf)
 
-    bear_div, div_strength = detect_bearish_divergence(df_mtf) if df_mtf is not None else (False, 0.0)
+    # MTF RSI divergence — PRIMARY signal (pivot_right=0: detect on current bar, no lag)
+    bear_div, div_strength = (
+        detect_bearish_divergence(df_mtf, pivot_right=0, lookback=80)
+        if df_mtf is not None else (False, 0.0)
+    )
 
     ltf = score_ltf_confirmation(df_ltf) if df_ltf is not None else {}
 
@@ -447,10 +449,6 @@ def score_bearish_confluence(
     }
 
     raw_score = sum(weights[k] for k, v in gates.items() if v)
-
-    if not bear_div:
-        raw_score = min(raw_score, 40)
-
     direction = "BEARISH" if raw_score >= 50 else "NEUTRAL"
 
     return ConfluenceResult(

@@ -29,11 +29,11 @@ class Confidence(str, Enum):
 _CONFIDENCE_MIN_ALERT = {"A+", "A-", "B"}
 
 # MTF gate weights (total = 100)
-# rsi_divergence is the primary gate — without it score is hard-capped at 40
+# rsi_divergence is the highest-weight factor — required for A+, boosts A-/B
 _CALL_GATES = [
     ("regime_supportive",        10),
     ("rs_positive",               5),
-    ("rsi_divergence",           30),   # PRIMARY — MTF 15-min
+    ("rsi_divergence",           30),   # Highest weight — MTF 15-min
     ("htf_trend_bullish",        15),   # Daily trend filter
     ("macd_bull_cross",          15),   # LTF 5-min confirmation
     ("above_vwap",               10),   # LTF 5-min confirmation
@@ -45,7 +45,7 @@ _CALL_GATES = [
 _PUT_GATES = [
     ("regime_supportive",        10),
     ("rs_negative",               5),
-    ("rsi_divergence",           30),   # PRIMARY — MTF 15-min
+    ("rsi_divergence",           30),   # Highest weight — MTF 15-min
     ("htf_trend_bearish",        15),   # Daily trend filter
     ("macd_bear_cross",          15),   # LTF 5-min confirmation
     ("below_vwap",               10),   # LTF 5-min confirmation
@@ -168,18 +168,13 @@ def _score_put_gates(
 
 
 def _weighted_score(gates: dict[str, bool], gate_defs: list[tuple[str, int]]) -> float:
-    raw = sum(w for name, w in gate_defs if gates.get(name, False))
-    # Hard cap: without RSI divergence, max possible score is 40 (no signal)
-    if not gates.get("rsi_divergence", False):
-        raw = min(raw, 40)
-    return float(raw)
+    return float(sum(w for name, w in gate_defs if gates.get(name, False)))
 
 
 def _grade_confidence(score: float, gates: dict[str, bool]) -> Optional[Confidence]:
-    # RSI divergence is mandatory — no signal without it
-    if not gates.get("rsi_divergence", False):
-        return None
-    if score >= 85:
+    # A+ requires RSI divergence — it is the highest-conviction setup
+    has_div = gates.get("rsi_divergence", False)
+    if score >= 85 and has_div:
         return Confidence.A_PLUS
     elif score >= 65:
         return Confidence.A_MINUS

@@ -45,7 +45,10 @@ class MarketRegime:
 def _compute_vwap(df: pd.DataFrame) -> float:
     """Intraday VWAP from OHLCV dataframe."""
     typical = (df["high"] + df["low"] + df["close"]) / 3
-    return (typical * df["volume"]).sum() / df["volume"].sum()
+    total_vol = df["volume"].sum()
+    if total_vol == 0:
+        return float(df["close"].iloc[-1])
+    return float((typical * df["volume"]).sum() / total_vol)
 
 
 def _ema_slope(series: pd.Series, period: int) -> float:
@@ -159,13 +162,17 @@ def analyze_market_regime(
     else:
         overall_bias = Bias.NEUTRAL
 
+    # Only suppress option buying for events (IV crush risk) and theta decay (premiums too costly).
+    # MEAN_REVERTING and RANGEBOUND are prime environments for RSI divergence setups.
+    _no_buy = {RegimeType.EVENT_RISK, RegimeType.THETA_DECAY}
+
     call_buying = (
-        regime_type in (RegimeType.TRENDING_BULLISH, RegimeType.HIGH_VOL_EXPANSION)
-        and vix.value < 20
+        regime_type not in _no_buy
+        and vix.value < 22
         and overall_bias != Bias.BEARISH
     )
     put_buying = (
-        regime_type in (RegimeType.TRENDING_BEARISH, RegimeType.HIGH_VOL_EXPANSION)
+        regime_type not in _no_buy
         and overall_bias != Bias.BULLISH
     )
 
