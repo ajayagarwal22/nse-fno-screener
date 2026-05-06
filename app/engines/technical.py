@@ -207,7 +207,7 @@ def assess_htf_trend(df_daily: Optional[pd.DataFrame]) -> tuple[str, bool]:
     Assess daily-chart trend. Returns (trend: str, ema_aligned: bool).
     trend = BULLISH | BEARISH | NEUTRAL
     """
-    if df_daily is None or len(df_daily) < 50:
+    if df_daily is None or len(df_daily) < 20:
         return "NEUTRAL", False
 
     close = df_daily["close"]

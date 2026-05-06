@@ -90,7 +90,7 @@ async def run_scan(trade_type: TradeType = TradeType.INTRADAY) -> list[Signal]:
                 if direction == Direction.CALL
                 else score_bearish_confluence(df_5min, df_mtf=df_15min, df_htf=df_daily)
             )
-            if tech.score < 50:
+            if tech.score < 35:
                 logger.debug(
                     f"[Layer 3] {symbol} score={tech.score:.0f} "
                     f"div={tech.rsi_divergence} htf={tech.htf_trend} — skip"
@@ -104,12 +104,6 @@ async def run_scan(trade_type: TradeType = TradeType.INTRADAY) -> list[Signal]:
                 continue
 
             deriv = analyze_derivatives(symbol, spot)
-            if direction == Direction.CALL and not deriv.supports_call_buy:
-                logger.debug(f"[Layer 4] {symbol} derivatives don't support CALL")
-                continue
-            if direction == Direction.PUT and not deriv.supports_put_buy:
-                logger.debug(f"[Layer 4] {symbol} derivatives don't support PUT")
-                continue
 
             # --- Layer 5: Option selection ---
             opt_type = OptionType.CE if direction == Direction.CALL else OptionType.PE

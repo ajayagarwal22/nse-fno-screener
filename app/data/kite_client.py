@@ -89,7 +89,7 @@ class KiteClient:
         if to_date is None:
             to_date = datetime.now()
         if from_date is None:
-            from_date = to_date - timedelta(days=45 if interval == "day" else 5)
+            from_date = to_date - timedelta(days=300 if interval == "day" else 5)
 
         records = self.kite.historical_data(
             instrument_token=instrument_token,
