@@ -178,7 +178,7 @@ def _grade_confidence(score: float, gates: dict[str, bool]) -> Optional[Confiden
         return Confidence.A_PLUS
     elif score >= 65:
         return Confidence.A_MINUS
-    elif score >= 45:
+    elif score >= 55:
         return Confidence.B
     return None
 

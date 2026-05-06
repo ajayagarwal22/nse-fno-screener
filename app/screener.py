@@ -90,12 +90,19 @@ async def run_scan(trade_type: TradeType = TradeType.INTRADAY) -> list[Signal]:
                 if direction == Direction.CALL
                 else score_bearish_confluence(df_5min, df_mtf=df_15min, df_htf=df_daily)
             )
-            if tech.score < 35:
+            if tech.score < 45:
                 logger.debug(
                     f"[Layer 3] {symbol} score={tech.score:.0f} "
                     f"div={tech.rsi_divergence} htf={tech.htf_trend} — skip"
                 )
                 continue
+
+            # Block counter-trend setups without divergence (most common fake signal)
+            if direction == Direction.CALL and tech.htf_trend == "BEARISH" and not tech.rsi_divergence:
+                logger.debug(f"[Layer 3] {symbol} CALL vs BEARISH daily — no divergence — skip")
+                continue
+            if direction == Direction.PUT and tech.htf_trend == "BULLISH" and not tech.rsi_divergence:
+                logger.debug(f"[Layer 3] {symbol} PUT vs BULLISH daily — no divergence — skip")
 
             # --- Layer 4: Derivatives intelligence ---
             ltp_map = kite_client.get_ltp([symbol])
