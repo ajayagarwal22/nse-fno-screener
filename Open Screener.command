@@ -21,14 +21,14 @@ pkill -f "uvicorn app.main:app" 2>/dev/null
 sleep 1
 
 # Step 3: Start server
-uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+uvicorn app.main:app --host 0.0.0.0 --port 8001 &
 
 # Step 4: Open browser once server is ready
 sleep 3
-open http://localhost:8000
+open http://localhost:8001
 
 echo ""
-echo "Dashboard open at http://localhost:8000"
+echo "Dashboard open at http://localhost:8001"
 echo "Press Ctrl+C to stop the server."
 echo ""
 

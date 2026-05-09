@@ -1,13 +1,13 @@
 """Kite Connect OAuth flow.
 
 Morning routine:
-  1. Open http://localhost:8000/auth/
+  1. Open http://localhost:8001/auth/
   2. Click "Login with Zerodha"
   3. Complete Zerodha login
   4. Token is auto-saved to .env and applied live — no restart needed.
 
 Redirect URL to register in Kite developer console:
-  http://localhost:8000/auth/callback
+  http://localhost:8001/auth/callback
 """
 import os
 import re
