@@ -3299,5 +3299,38 @@
       "VIX 15.0"
     ],
     "oi_interpretation": "NEUTRAL"
+  },
+  {
+    "id": "2589c215-acac-4fe1-8728-bd5990991e87",
+    "timestamp": "2026-05-06T15:25:06.496653",
+    "symbol": "BSE",
+    "direction": "CALL",
+    "trade_type": "INTRADAY",
+    "confidence": "B",
+    "gate_score": 60.0,
+    "strike": null,
+    "expiry": null,
+    "option_type": null,
+    "premium": null,
+    "iv": null,
+    "entry_zone": "Premium breakout above 3857.00 zone",
+    "stop_loss": "Spot closes below VWAP or 3837.72",
+    "target_1": "3876.28 (1:1 RR)",
+    "target_2": "3895.57 (1:2 RR)",
+    "rr_ratio": "1:2",
+    "position_sizing": "Half position (0.5\u20131% capital)",
+    "regime_type": "TRENDING_BULLISH",
+    "vix_level": 15.0,
+    "rsi_value": 75.4490274501619,
+    "pcr_value": 0.93,
+    "reasons": [
+      "Daily trend BULLISH",
+      "Price above VWAP (3760.61)",
+      "MACD histogram flipped bullish (+0.22)",
+      "OI: NEUTRAL",
+      "PCR 0.93 (NEUTRAL)",
+      "VIX 15.0 (NORMAL)"
+    ],
+    "oi_interpretation": "NEUTRAL"
   }
 ]
