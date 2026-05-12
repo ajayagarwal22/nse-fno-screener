@@ -151,6 +151,26 @@ button:disabled { opacity:.5; cursor:not-allowed; }
 .alert-meta strong { color:#e2e8f0; }
 .alert-badge-row { display:flex; gap:5px; margin:5px 0; }
 
+/* ── Index Signals panel ── */
+.idx-signals-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.idx-signals-bar h2 { font-size:13px; font-weight:700; color:#e2e8f0; }
+.idx-signals-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+@media(max-width:1100px){ .idx-signals-grid { grid-template-columns:repeat(2,1fr); } }
+.idx-sig-card { background:#0d1117; border:1px solid #1e2533; border-radius:10px; padding:14px 16px; border-left:3px solid #334155; }
+.idx-sig-card.BULLISH { border-left-color:#22c55e; }
+.idx-sig-card.BEARISH { border-left-color:#ef4444; }
+.idx-sig-card.NEUTRAL { border-left-color:#334155; }
+.idx-sig-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+.idx-sig-name { font-size:14px; font-weight:700; color:#a78bfa; }
+.idx-sig-ltp { font-size:12px; font-weight:700; color:#e2e8f0; font-variant-numeric:tabular-nums; }
+.idx-sig-badges { display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap; }
+.idx-sig-meta { display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; }
+.idx-sig-row { font-size:11px; color:#64748b; display:flex; justify-content:space-between; }
+.idx-sig-row span { font-weight:600; color:#94a3b8; }
+.idx-sig-row span.pos { color:#4ade80; }
+.idx-sig-row span.neg { color:#f87171; }
+.idx-sig-reason { font-size:10px; color:#475569; margin-top:7px; line-height:1.5; border-top:1px solid #1e2533; padding-top:6px; }
+
 /* auth notice */
 .auth-notice { background:#0d1117; border:1px solid #3b1c8c44; border-radius:8px; padding:12px 18px; margin-bottom:16px; font-size:12px; color:#94a3b8; display:flex; align-items:center; gap:12px; }
 .auth-notice a { color:#a78bfa; text-decoration:none; font-weight:600; }
@@ -204,6 +224,18 @@ button:disabled { opacity:.5; cursor:not-allowed; }
       <h2>Macro Risk</h2>
       <div id="macro-content"><div class="skeleton" style="width:30%"></div><div class="skeleton" style="width:80%;margin-top:8px"></div></div>
     </div>
+  </div>
+
+  <!-- Index Signals -->
+  <div class="idx-signals-bar">
+    <h2>Index Signals</h2>
+    <span id="idx-signals-updated" style="font-size:11px;color:#334155"></span>
+  </div>
+  <div class="idx-signals-grid" id="idx-signals-grid">
+    <div class="idx-sig-card NEUTRAL"><div class="skeleton" style="height:80px"></div></div>
+    <div class="idx-sig-card NEUTRAL"><div class="skeleton" style="height:80px"></div></div>
+    <div class="idx-sig-card NEUTRAL"><div class="skeleton" style="height:80px"></div></div>
+    <div class="idx-sig-card NEUTRAL"><div class="skeleton" style="height:80px"></div></div>
   </div>
 
   <!-- Signal Pipeline -->
@@ -382,6 +414,42 @@ async function loadMacro() {
   } catch(e) {
     document.getElementById('macro-content').innerHTML = `<div style="color:#475569;font-size:12px;margin-top:8px">Retrying…</div>`;
   }
+}
+
+// ── Index Signals panel ──────────────────────────────────────────
+let _idxSigBusy = false;
+async function loadIndexSignals() {
+  if (_idxSigBusy) return;
+  _idxSigBusy = true;
+  try {
+    const d = await get('/market/index-signals');
+    const grid = document.getElementById('idx-signals-grid');
+    grid.innerHTML = (d.indices || []).map(idx => {
+      const rsColor = idx.rs_score > 0 ? 'pos' : idx.rs_score < 0 ? 'neg' : '';
+      const rsStr = idx.rs_score != null ? `${idx.rs_score >= 0 ? '+' : ''}${(idx.rs_score * 100).toFixed(2)}%` : '—';
+      const pcrStr = idx.pcr != null ? idx.pcr.toFixed(2) : '—';
+      const pcrColor = idx.pcr != null ? (idx.pcr > 1.3 ? 'pos' : idx.pcr < 0.7 ? 'neg' : '') : '';
+      const ltpStr = idx.ltp ? idx.ltp.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+      return `<div class="idx-sig-card ${idx.bias}">
+        <div class="idx-sig-top">
+          <div class="idx-sig-name">${idx.symbol}</div>
+          <div class="idx-sig-ltp">${ltpStr}</div>
+        </div>
+        <div class="idx-sig-badges">
+          ${badge(idx.bias)}
+          ${idx.direction ? badge(idx.direction) : ''}
+        </div>
+        <div class="idx-sig-meta">
+          <div class="idx-sig-row">RS <span class="${rsColor}">${rsStr}</span></div>
+          <div class="idx-sig-row">PCR <span class="${pcrColor}">${pcrStr}</span></div>
+        </div>
+        <div class="idx-sig-reason">${idx.reason}</div>
+      </div>`;
+    }).join('');
+    document.getElementById('idx-signals-updated').textContent =
+      'Updated ' + new Date().toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  } catch(e) {}
+  finally { _idxSigBusy = false; }
 }
 
 // ── Pipeline state ────────────────────────────────────────────────
@@ -644,7 +712,7 @@ async function triggerScan(silent = false) {
 }
 
 async function loadAll() {
-  await loadMarket();
+  await Promise.all([loadMarket(), loadIndexSignals()]);
   // Auto-scan on load during market hours
   if (isMarketOpen()) {
     await triggerScan(true);
@@ -706,9 +774,9 @@ function connectWS() {
   setInterval(() => { if (ws.readyState === 1) ws.send('ping'); }, 25000);
 }
 
-// Auto-refresh market cards every 90s, indices + pipeline every 30s
+// Auto-refresh market cards every 90s; index signals + ticker every 1s; pipeline every 30s
 setInterval(loadMarket, 90000);
-setInterval(loadIndices, 1000);
+setInterval(() => { loadIndices(); loadIndexSignals(); }, 1000);
 setInterval(() => { if(isMarketOpen()) renderPipeline(lastCandidates); }, 30000);
 
 loadAll();

@@ -127,6 +127,98 @@ async def get_indices():
     return {"indices": result}
 
 
+@router.get("/index-signals")
+async def get_index_signals():
+    """Per-index bias, RS, PCR, and option direction — feeds the Index Signals panel."""
+    import pandas as pd
+    from app.data.kite_client import kite_client
+    from app.engines.market_regime import analyze_market_regime, Bias
+    from app.engines.stock_selector import _NSE_INDEX_CONFIGS, _relative_strength
+
+    # Reuse cached regime; if expired, recompute with proper intraday OHLCV
+    regime = cache.get_regime()
+    if not regime:
+        try:
+            tokens = kite_client.get_nse_index_tokens()
+            nifty_df = kite_client.get_ohlcv(tokens.get("NIFTY 50", 256265), interval="5minute")
+            bnf_df   = kite_client.get_ohlcv(tokens.get("NIFTY BANK", 260105), interval="5minute")
+            regime = analyze_market_regime(nifty_df=nifty_df, banknifty_df=bnf_df)
+        except Exception:
+            regime = analyze_market_regime()
+
+    # NIFTY daily returns for RS computation of other indices
+    try:
+        idx_tokens = kite_client.get_nse_index_tokens()
+        nifty_daily = kite_client.get_ohlcv(idx_tokens.get("NIFTY 50", 256265), interval="day")
+        nifty_ret = nifty_daily["close"].pct_change().dropna().tail(20) if (nifty_daily is not None and not nifty_daily.empty) else pd.Series(dtype=float)
+    except Exception:
+        idx_tokens = {}
+        nifty_ret = pd.Series(dtype=float)
+
+    results = []
+    for sym, nse_sym in _NSE_INDEX_CONFIGS:
+        ltp = 0.0
+        try:
+            ltp = kite_client.get_ltp([sym]).get(sym, 0.0)
+        except Exception:
+            pass
+
+        pcr = None
+        try:
+            chain = kite_client.get_option_chain(sym)
+            if not chain.empty:
+                ce_oi = chain[chain["type"] == "CE"]["oi"].sum()
+                pe_oi = chain[chain["type"] == "PE"]["oi"].sum()
+                if ce_oi > 0:
+                    pcr = round(pe_oi / ce_oi, 2)
+        except Exception:
+            pass
+
+        # NIFTY and BANKNIFTY: use regime bias (same source as Market Regime card)
+        if sym == "NIFTY":
+            b = regime.nifty_bias
+            bias = b.value
+            rs = 0.03 if b == Bias.BULLISH else (-0.03 if b == Bias.BEARISH else 0.0)
+            reason = f"Nifty 50 — regime {bias.lower()}"
+        elif sym == "BANKNIFTY":
+            b = regime.banknifty_bias
+            bias = b.value
+            rs = 0.02 if b == Bias.BULLISH else (-0.02 if b == Bias.BEARISH else 0.0)
+            reason = f"Nifty Bank — regime {bias.lower()}"
+        else:
+            # FINNIFTY / MIDCPNIFTY: compute RS vs Nifty daily (lower 0.5% threshold)
+            bias, rs = "NEUTRAL", 0.0
+            reason = f"{nse_sym} — neutral RS"
+            try:
+                token = idx_tokens.get(nse_sym)
+                if token and not nifty_ret.empty:
+                    df = kite_client.get_ohlcv(token, interval="day")
+                    if df is not None and len(df) >= 21:
+                        rs = _relative_strength(df["close"].pct_change().dropna().tail(20), nifty_ret)
+                        if rs > 0.005:
+                            bias, reason = "BULLISH", f"{nse_sym} RS={rs:+.2%} — outperforming Nifty"
+                        elif rs < -0.005:
+                            bias, reason = "BEARISH", f"{nse_sym} RS={rs:+.2%} — underperforming Nifty"
+                        else:
+                            reason = f"{nse_sym} RS={rs:+.2%} — in line with Nifty"
+            except Exception:
+                pass
+
+        direction = "CALL" if bias == "BULLISH" else ("PUT" if bias == "BEARISH" else None)
+        results.append({
+            "symbol": sym,
+            "full_name": nse_sym,
+            "ltp": round(ltp, 2),
+            "bias": bias,
+            "direction": direction,
+            "rs_score": round(rs, 4),
+            "pcr": pcr,
+            "reason": reason,
+        })
+
+    return {"indices": results}
+
+
 @router.get("/macro-risk")
 async def get_macro_risk():
     assessment = assess_macro_risk()
