@@ -190,12 +190,13 @@ class PaperTrader:
 
     def _handle(self, signal):
         fields = _extract(signal)
-        symbol    = fields["symbol"]
-        direction = fields["direction"]
-        sl_spot   = fields["sl_spot"]
-        target1   = fields["target1"]
-        target2   = fields["target2"]
-        exit_rule = fields["exit_time_rule"]
+        symbol     = fields["symbol"]
+        direction  = fields["direction"]
+        entry_zone = fields["entry_spot"]   # zone level from signal (may be 0)
+        sl_spot    = fields["sl_spot"]
+        target1    = fields["target1"]
+        target2    = fields["target2"]
+        exit_rule  = fields["exit_time_rule"]
 
         # 1. Write signal to DB first (always — even if trade fails)
         signal_id = db.insert_signal(fields)
@@ -210,29 +211,29 @@ class PaperTrader:
         except Exception as exc:
             logger.warning(f"[PaperTrader] Instruments refresh skipped: {exc}")
 
-        # 3. Get live spot price
+        # 3. Get live spot price (to pick the right ITM strike)
         spot = self._get_spot_ltp(symbol)
         if not spot or spot <= 0:
             self._skip_trade(signal_id, symbol, direction, "Could not fetch spot LTP")
             return
 
-        # 4. Pick ITM strike
+        # 4. Pick ITM strike based on live spot
         result = pick(symbol, spot, direction)
         if result is None:
             self._skip_trade(signal_id, symbol, direction, "Strike/expiry not found in instruments")
             return
         strike, option_type, expiry, option_token = result
 
-        # 5. Get entry option premium
-        entry_premium = self._get_option_ltp(option_token) or 0.0
-
-        # 6. Resolve spot instrument token for WebSocket monitoring
+        # 5. Resolve spot instrument token for WebSocket monitoring
         spot_token = inst.get_nse_spot_token(symbol, self._kite)
         if not spot_token:
             self._skip_trade(signal_id, symbol, direction, "Could not resolve spot token")
             return
 
-        # 7. Write trade to DB
+        # 6. Use signal's entry zone level; fall back to live spot if not parsed
+        zone = entry_zone if entry_zone and entry_zone > 0 else round(spot, 2)
+
+        # 7. Write trade to DB as WATCHING (entry premium/time filled when zone is hit)
         trade_id = db.insert_trade({
             "signal_id":        signal_id,
             "symbol":           symbol,
@@ -242,10 +243,10 @@ class PaperTrader:
             "option_type":      option_type,
             "instrument_token": option_token,
             "spot_token":       spot_token,
-            "entry_premium":    entry_premium,
-            "entry_spot":       round(spot, 2),
-            "entry_time":       datetime.now().isoformat(),
-            "status":           "ACTIVE",
+            "entry_premium":    None,
+            "entry_spot":       zone,
+            "entry_time":       None,
+            "status":           "WATCHING",
             "lots":             1,
         })
         if not trade_id:
@@ -263,20 +264,21 @@ class PaperTrader:
             option_type=option_type,
             spot_token=spot_token,
             option_token=option_token,
-            entry_premium=entry_premium,
-            entry_spot=round(spot, 2),
+            entry_premium=0.0,
+            entry_spot=zone,
             sl_spot=sl_spot,
             target1=target1,
             target2=target2,
             exit_time_rule=exit_rule,
+            status="WATCHING",
         )
         self._monitor.add_trade(active)
         self._subscribe({spot_token, option_token})
 
         logger.info(
-            f"[PaperTrader] trade#{trade_id} ENTERED "
+            f"[PaperTrader] trade#{trade_id} WATCHING "
             f"{symbol} {strike}{option_type} exp={expiry} "
-            f"prem={entry_premium:.2f} spot={spot:.2f}"
+            f"zone={zone:.2f} spot={spot:.2f}"
         )
 
     def _skip_trade(self, signal_id: int, symbol: str, direction: str, reason: str):

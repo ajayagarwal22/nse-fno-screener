@@ -152,6 +152,17 @@ def _do_close_trade(conn: sqlite3.Connection, trade_id: int, data: dict):
     """, {**data, "trade_id": trade_id})
 
 
+def _do_confirm_entry(conn: sqlite3.Connection, trade_id: int, data: dict):
+    conn.execute("""
+        UPDATE trades SET
+            entry_premium = :entry_premium,
+            entry_spot    = :entry_spot,
+            entry_time    = :entry_time,
+            status        = 'ACTIVE'
+        WHERE id = :trade_id
+    """, {**data, "trade_id": trade_id})
+
+
 def _do_set_status(conn: sqlite3.Connection, trade_id: int, status: str):
     conn.execute("UPDATE trades SET status=? WHERE id=?", (status, trade_id))
 
@@ -171,6 +182,11 @@ def insert_trade(data: dict) -> Optional[int]:
 def close_trade(trade_id: int, data: dict):
     """Write exit data for a trade (fire-and-forget — non-blocking)."""
     _enqueue(_do_close_trade, trade_id, data)
+
+
+def confirm_entry(trade_id: int, data: dict):
+    """Write confirmed entry details and flip status to ACTIVE (fire-and-forget)."""
+    _enqueue(_do_confirm_entry, trade_id, data)
 
 
 def set_trade_status(trade_id: int, status: str):

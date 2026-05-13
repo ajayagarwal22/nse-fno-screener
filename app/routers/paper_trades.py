@@ -126,7 +126,20 @@ def list_trades(limit: int = 50):
             (today, limit),
         ).fetchall()
         con.close()
-        return {"trades": [dict(r) for r in rows]}
+        trades = [dict(r) for r in rows]
+
+        # Merge live prices for WATCHING/ACTIVE trades from in-memory monitor
+        import paper_trader as pt
+        if pt._instance is not None:
+            live = pt._instance._monitor.get_live_prices()
+            for t in trades:
+                if t["id"] in live:
+                    lp = live[t["id"]]
+                    t["current_spot"]    = lp.get("current_spot")
+                    t["current_premium"] = lp.get("current_premium")
+                    t["live_status"]     = lp.get("status")
+
+        return {"trades": trades}
     except Exception as exc:
         raise HTTPException(500, str(exc))
 

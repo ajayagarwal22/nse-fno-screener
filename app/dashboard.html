@@ -186,7 +186,7 @@ button:disabled { opacity:.5; cursor:not-allowed; }
 .pt-sum-val { font-size:22px; font-weight:700; line-height:1.1; }
 .pt-sum-lbl { font-size:10px; color:#475569; margin-top:4px; text-transform:uppercase; letter-spacing:.8px; }
 .pt-tbl-wrap { background:#0d1117; border:1px solid #1e2533; border-radius:10px; margin-bottom:16px; overflow-x:auto; }
-.pt-tbl { border-collapse:collapse; font-size:12px; min-width:860px; width:100%; }
+.pt-tbl { border-collapse:collapse; font-size:12px; min-width:1060px; width:100%; }
 .pt-tbl th { background:#0a0e18; border-bottom:1px solid #1e2533; color:#475569; font-size:10px; font-weight:600; letter-spacing:.8px; padding:8px 12px; text-align:left; text-transform:uppercase; white-space:nowrap; }
 .pt-tbl td { border-bottom:1px solid #0d1420; padding:9px 12px; vertical-align:middle; }
 .pt-tbl tr:last-child td { border-bottom:none; }
@@ -198,9 +198,10 @@ button:disabled { opacity:.5; cursor:not-allowed; }
 .pnl-loss { color:#f87171; font-weight:700; }
 .pnl-neu  { color:#475569; }
 .pill { border-radius:20px; display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; }
-.pill-active  { background:#052e16; border:1px solid #166534; color:#4ade80; }
-.pill-closed  { background:#1e2533; border:1px solid #334155; color:#64748b; }
-.pill-skipped { background:#1e2533; border:1px solid #1e2533; color:#475569; }
+.pill-active   { background:#052e16; border:1px solid #166534; color:#4ade80; }
+.pill-watching { background:#431407; border:1px solid #92400e; color:#fbbf24; }
+.pill-closed   { background:#1e2533; border:1px solid #334155; color:#64748b; }
+.pill-skipped  { background:#1e2533; border:1px solid #1e2533; color:#475569; }
 .pt-empty { color:#334155; font-size:12px; padding:28px; text-align:center; }
 .sec-hdr { color:#475569; font-size:10px; font-weight:700; letter-spacing:1.2px; margin:14px 0 8px; text-transform:uppercase; }
 
@@ -337,9 +338,9 @@ button:disabled { opacity:.5; cursor:not-allowed; }
       <table class="pt-tbl">
         <thead><tr>
           <th>#</th><th>Symbol</th><th>Dir</th><th>Strike</th><th>Expiry</th>
-          <th>Entry Prem</th><th>Entry Spot</th><th>Entry Time</th><th>Status</th>
+          <th>Entry Prem</th><th>Spot Zone</th><th>Cur Spot</th><th>Cur Prem</th><th>Running P&amp;L</th><th>Status</th>
         </tr></thead>
-        <tbody id="pt-active-body"><tr><td colspan="9" class="pt-empty">No active trades</td></tr></tbody>
+        <tbody id="pt-active-body"><tr><td colspan="11" class="pt-empty">No active trades</td></tr></tbody>
       </table>
     </div>
 
@@ -918,18 +919,40 @@ function renderPtTrades(trades) {
   // Active table
   const aTbody = document.getElementById('pt-active-body');
   aTbody.innerHTML = active.length === 0
-    ? '<tr><td colspan="9" class="pt-empty">No active trades</td></tr>'
-    : active.map(t => `<tr class="tr-active">
-        <td style="color:#475569">#${t.id}</td>
-        <td class="pt-sym">${t.symbol}</td>
-        <td>${ptBadge(t.direction)}</td>
-        <td style="color:#e2e8f0;font-weight:600">${t.strike} <span style="color:#475569;font-size:11px">${t.option_type}</span></td>
-        <td style="color:#64748b;font-size:11px">${(t.expiry||'').slice(0,10)}</td>
-        <td class="pt-prem">₹${fmt(t.entry_premium)}</td>
-        <td style="color:#94a3b8">${fmt(t.entry_spot)}</td>
-        <td style="color:#334155;font-size:11px">${ptTime(t.entry_time)}</td>
-        <td><span class="pill pill-active">ACTIVE</span></td>
-      </tr>`).join('');
+    ? '<tr><td colspan="11" class="pt-empty">No active trades</td></tr>'
+    : active.map(t => {
+        const watching   = (t.live_status || t.status) === 'WATCHING';
+        const curPrem    = t.current_premium;
+        const entryPrem  = t.entry_premium;
+        let runPnl = '—', pnlCls = '';
+        if (!watching && entryPrem != null && curPrem != null) {
+          const diff = curPrem - entryPrem;
+          runPnl = (diff >= 0 ? '+' : '') + diff.toFixed(2);
+          pnlCls = diff > 0 ? 'pnl-win' : diff < 0 ? 'pnl-loss' : 'pnl-neu';
+        }
+        const premCell   = entryPrem != null
+          ? `<span class="pt-prem">₹${fmt(entryPrem)}</span>`
+          : `<span style="color:#475569">—</span>`;
+        const curSpotCell = t.current_spot
+          ? `<span style="color:#e2e8f0">${fmt(t.current_spot)}</span>`
+          : `<span style="color:#334155">—</span>`;
+        const curPremCell = curPrem != null
+          ? `<span class="pt-prem">₹${fmt(curPrem)}</span>`
+          : `<span style="color:#334155">—</span>`;
+        return `<tr class="tr-active">
+          <td style="color:#475569">#${t.id}</td>
+          <td class="pt-sym">${t.symbol}</td>
+          <td>${ptBadge(t.direction)}</td>
+          <td style="color:#e2e8f0;font-weight:600">${t.strike} <span style="color:#475569;font-size:11px">${t.option_type}</span></td>
+          <td style="color:#64748b;font-size:11px">${(t.expiry||'').slice(0,10)}</td>
+          <td>${premCell}</td>
+          <td style="color:#94a3b8">${fmt(t.entry_spot)}</td>
+          <td>${curSpotCell}</td>
+          <td>${curPremCell}</td>
+          <td class="${pnlCls}">${runPnl}</td>
+          <td><span class="pill ${watching ? 'pill-watching' : 'pill-active'}">${watching ? 'WATCHING' : 'ACTIVE'}</span></td>
+        </tr>`;
+      }).join('');
 
   // Closed table
   const cTbody = document.getElementById('pt-closed-body');
