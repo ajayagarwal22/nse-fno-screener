@@ -171,6 +171,39 @@ button:disabled { opacity:.5; cursor:not-allowed; }
 .idx-sig-row span.neg { color:#f87171; }
 .idx-sig-reason { font-size:10px; color:#475569; margin-top:7px; line-height:1.5; border-top:1px solid #1e2533; padding-top:6px; }
 
+/* ── Tab bar ── */
+.tab-bar { display:flex; gap:0; border-bottom:1px solid #1e2533; margin-bottom:18px; }
+.tab-btn { background:none; border:none; border-bottom:2px solid transparent; color:#475569; cursor:pointer; font-family:inherit; font-size:12px; font-weight:600; margin-bottom:-1px; padding:9px 20px; transition:color .15s; }
+.tab-btn:hover { color:#94a3b8; }
+.tab-btn.active { border-bottom-color:#a78bfa; color:#a78bfa; }
+.tab-badge { background:#1e2533; border-radius:8px; color:#64748b; font-size:9px; margin-left:5px; padding:1px 6px; }
+.tab-badge.live { background:#052e16; color:#4ade80; }
+
+/* ── Paper Trades section ── */
+.pt-sum-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:18px; }
+@media(max-width:1000px){ .pt-sum-grid { grid-template-columns:repeat(3,1fr); } }
+.pt-sum-card { background:#0d1117; border:1px solid #1e2533; border-radius:10px; padding:14px 16px; }
+.pt-sum-val { font-size:22px; font-weight:700; line-height:1.1; }
+.pt-sum-lbl { font-size:10px; color:#475569; margin-top:4px; text-transform:uppercase; letter-spacing:.8px; }
+.pt-tbl-wrap { background:#0d1117; border:1px solid #1e2533; border-radius:10px; margin-bottom:16px; overflow-x:auto; }
+.pt-tbl { border-collapse:collapse; font-size:12px; min-width:860px; width:100%; }
+.pt-tbl th { background:#0a0e18; border-bottom:1px solid #1e2533; color:#475569; font-size:10px; font-weight:600; letter-spacing:.8px; padding:8px 12px; text-align:left; text-transform:uppercase; white-space:nowrap; }
+.pt-tbl td { border-bottom:1px solid #0d1420; padding:9px 12px; vertical-align:middle; }
+.pt-tbl tr:last-child td { border-bottom:none; }
+.pt-tbl tr.tr-active td { background:#0a1020; }
+.pt-tbl tr:hover td { background:#13182a; }
+.pt-sym { color:#a78bfa; font-weight:700; }
+.pt-prem { color:#f59e0b; font-weight:600; }
+.pnl-win  { color:#4ade80; font-weight:700; }
+.pnl-loss { color:#f87171; font-weight:700; }
+.pnl-neu  { color:#475569; }
+.pill { border-radius:20px; display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; }
+.pill-active  { background:#052e16; border:1px solid #166534; color:#4ade80; }
+.pill-closed  { background:#1e2533; border:1px solid #334155; color:#64748b; }
+.pill-skipped { background:#1e2533; border:1px solid #1e2533; color:#475569; }
+.pt-empty { color:#334155; font-size:12px; padding:28px; text-align:center; }
+.sec-hdr { color:#475569; font-size:10px; font-weight:700; letter-spacing:1.2px; margin:14px 0 8px; text-transform:uppercase; }
+
 /* auth notice */
 .auth-notice { background:#0d1117; border:1px solid #3b1c8c44; border-radius:8px; padding:12px 18px; margin-bottom:16px; font-size:12px; color:#94a3b8; display:flex; align-items:center; gap:12px; }
 .auth-notice a { color:#a78bfa; text-decoration:none; font-weight:600; }
@@ -238,6 +271,14 @@ button:disabled { opacity:.5; cursor:not-allowed; }
     <div class="idx-sig-card NEUTRAL"><div class="skeleton" style="height:80px"></div></div>
   </div>
 
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-signals" onclick="switchTab('signals')">Signals</button>
+    <button class="tab-btn" id="tab-trades" onclick="switchTab('trades')">Paper Trades <span class="tab-badge" id="tab-trades-badge">0</span></button>
+  </div>
+
+  <!-- ── Signals section ── -->
+  <div id="section-signals">
   <!-- Signal Pipeline -->
   <div class="pipeline-bar">
     <h2>Signal Pipeline</h2>
@@ -279,6 +320,42 @@ button:disabled { opacity:.5; cursor:not-allowed; }
       <div id="lane-expired-body"><div class="empty-lane">None</div></div>
     </div>
   </div>
+  </div><!-- /section-signals -->
+
+  <!-- ── Paper Trades section ── -->
+  <div id="section-trades" style="display:none">
+    <div class="pt-sum-grid" id="pt-sum-grid">
+      <div class="pt-sum-card"><div class="skeleton" style="height:22px;width:50%"></div><div class="skeleton" style="height:10px;width:70%;margin-top:6px"></div></div>
+      <div class="pt-sum-card"><div class="skeleton" style="height:22px;width:50%"></div><div class="skeleton" style="height:10px;width:70%;margin-top:6px"></div></div>
+      <div class="pt-sum-card"><div class="skeleton" style="height:22px;width:50%"></div><div class="skeleton" style="height:10px;width:70%;margin-top:6px"></div></div>
+      <div class="pt-sum-card"><div class="skeleton" style="height:22px;width:50%"></div><div class="skeleton" style="height:10px;width:70%;margin-top:6px"></div></div>
+      <div class="pt-sum-card"><div class="skeleton" style="height:22px;width:50%"></div><div class="skeleton" style="height:10px;width:70%;margin-top:6px"></div></div>
+    </div>
+
+    <div class="sec-hdr">Active</div>
+    <div class="pt-tbl-wrap">
+      <table class="pt-tbl">
+        <thead><tr>
+          <th>#</th><th>Symbol</th><th>Dir</th><th>Strike</th><th>Expiry</th>
+          <th>Entry Prem</th><th>Entry Spot</th><th>Entry Time</th><th>Status</th>
+        </tr></thead>
+        <tbody id="pt-active-body"><tr><td colspan="9" class="pt-empty">No active trades</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="sec-hdr">Today's Closed</div>
+    <div class="pt-tbl-wrap">
+      <table class="pt-tbl">
+        <thead><tr>
+          <th>#</th><th>Symbol</th><th>Dir</th><th>Strike</th>
+          <th>Entry Prem</th><th>Exit Prem</th><th>P&amp;L Pts</th><th>P&amp;L %</th>
+          <th>Exit Reason</th><th>Outcome</th>
+        </tr></thead>
+        <tbody id="pt-closed-body"><tr><td colspan="10" class="pt-empty">No closed trades today</td></tr></tbody>
+      </table>
+    </div>
+  </div><!-- /section-trades -->
+
 </main>
 
 <script>
@@ -774,13 +851,120 @@ function connectWS() {
   setInterval(() => { if (ws.readyState === 1) ws.send('ping'); }, 25000);
 }
 
+// ── Paper Trades state (must be declared before first use) ────────
+let _activeTab = localStorage.getItem('fno_tab') || 'signals';
+let _ptBusy = false;
+
 // Auto-refresh market cards every 90s; index signals + ticker every 1s; pipeline every 30s
 setInterval(loadMarket, 90000);
 setInterval(() => { loadIndices(); loadIndexSignals(); }, 1000);
 setInterval(() => { if(isMarketOpen()) renderPipeline(lastCandidates); }, 30000);
+setInterval(loadPaperTrades, 5000);
 
 loadAll();
+loadPaperTrades();   // populate badge immediately on every page load
 connectWS();
+switchTab(_activeTab);
+
+function switchTab(tab) {
+  _activeTab = tab;
+  localStorage.setItem('fno_tab', tab);
+  document.getElementById('section-signals').style.display = tab === 'signals' ? '' : 'none';
+  document.getElementById('section-trades').style.display  = tab === 'trades'  ? '' : 'none';
+  document.getElementById('tab-signals').classList.toggle('active', tab === 'signals');
+  document.getElementById('tab-trades').classList.toggle('active',  tab === 'trades');
+  if (tab === 'trades') loadPaperTrades();
+}
+
+async function loadPaperTrades() {
+  if (_ptBusy) return;
+  _ptBusy = true;
+  try {
+    const [td, sd] = await Promise.all([get('/paper-trades/'), get('/paper-trades/summary')]);
+    renderPtSummary(sd);
+    renderPtTrades(td.trades || []);
+  } catch(e) {}
+  finally { _ptBusy = false; }
+}
+
+function renderPtSummary(sd) {
+  const o = sd.overall || {};
+  const total = o.total_trades || 0;
+  const wins  = o.wins  || 0;
+  const losses = o.losses || 0;
+  const active = (sd._active_count) || 0;
+  const wr = total > 0 ? ((wins / total) * 100).toFixed(0) + '%' : '—';
+  const pnl = o.total_pnl_points != null ? o.total_pnl_points : null;
+  const pnlStr = pnl != null ? (pnl >= 0 ? '+' : '') + pnl.toFixed(1) : '—';
+  const pnlColor = pnl == null ? '#94a3b8' : pnl >= 0 ? '#4ade80' : '#f87171';
+  const wrColor = total === 0 ? '#94a3b8' : +wr >= 60 ? '#4ade80' : +wr >= 40 ? '#f59e0b' : '#f87171';
+  document.getElementById('pt-sum-grid').innerHTML = `
+    <div class="pt-sum-card"><div class="pt-sum-val" style="color:#a78bfa">${total}</div><div class="pt-sum-lbl">Total Trades</div></div>
+    <div class="pt-sum-card"><div class="pt-sum-val pnl-win">${wins}</div><div class="pt-sum-lbl">Wins</div></div>
+    <div class="pt-sum-card"><div class="pt-sum-val pnl-loss">${losses}</div><div class="pt-sum-lbl">Losses</div></div>
+    <div class="pt-sum-card"><div class="pt-sum-val" style="color:${wrColor}">${wr}</div><div class="pt-sum-lbl">Win Rate</div></div>
+    <div class="pt-sum-card"><div class="pt-sum-val" style="color:${pnlColor}">${pnlStr}</div><div class="pt-sum-lbl">P&amp;L (pts)</div></div>`;
+}
+
+function renderPtTrades(trades) {
+  const active = trades.filter(t => t.status === 'ACTIVE' || t.status === 'WATCHING');
+  const closed = trades.filter(t => t.status === 'CLOSED');
+
+  // Update tab badge
+  const bdg = document.getElementById('tab-trades-badge');
+  bdg.textContent = active.length;
+  bdg.className = 'tab-badge' + (active.length > 0 ? ' live' : '');
+
+  // Active table
+  const aTbody = document.getElementById('pt-active-body');
+  aTbody.innerHTML = active.length === 0
+    ? '<tr><td colspan="9" class="pt-empty">No active trades</td></tr>'
+    : active.map(t => `<tr class="tr-active">
+        <td style="color:#475569">#${t.id}</td>
+        <td class="pt-sym">${t.symbol}</td>
+        <td>${ptBadge(t.direction)}</td>
+        <td style="color:#e2e8f0;font-weight:600">${t.strike} <span style="color:#475569;font-size:11px">${t.option_type}</span></td>
+        <td style="color:#64748b;font-size:11px">${(t.expiry||'').slice(0,10)}</td>
+        <td class="pt-prem">₹${fmt(t.entry_premium)}</td>
+        <td style="color:#94a3b8">${fmt(t.entry_spot)}</td>
+        <td style="color:#334155;font-size:11px">${ptTime(t.entry_time)}</td>
+        <td><span class="pill pill-active">ACTIVE</span></td>
+      </tr>`).join('');
+
+  // Closed table
+  const cTbody = document.getElementById('pt-closed-body');
+  cTbody.innerHTML = closed.length === 0
+    ? '<tr><td colspan="10" class="pt-empty">No closed trades today</td></tr>'
+    : closed.map(t => {
+        const pnl = t.pnl_points;
+        const pc  = pnl > 0 ? 'pnl-win' : pnl < 0 ? 'pnl-loss' : 'pnl-neu';
+        const sg  = pnl > 0 ? '+' : '';
+        const oc  = t.outcome === 'WIN' ? '#4ade80' : t.outcome === 'LOSS' ? '#f87171' : '#94a3b8';
+        return `<tr>
+          <td style="color:#475569">#${t.id}</td>
+          <td class="pt-sym">${t.symbol}</td>
+          <td>${ptBadge(t.direction)}</td>
+          <td style="color:#e2e8f0;font-weight:600">${t.strike} <span style="color:#475569;font-size:11px">${t.option_type}</span></td>
+          <td class="pt-prem">₹${fmt(t.entry_premium)}</td>
+          <td style="color:#94a3b8">₹${fmt(t.exit_premium)}</td>
+          <td class="${pc}">${pnl != null ? sg + (+pnl).toFixed(2) : '—'}</td>
+          <td class="${pc}">${t.pnl_percent != null ? sg + (+t.pnl_percent).toFixed(1) + '%' : '—'}</td>
+          <td style="color:#64748b">${t.exit_reason || '—'}</td>
+          <td style="color:${oc};font-weight:700">${t.outcome || '—'}</td>
+        </tr>`;
+      }).join('');
+}
+
+function ptBadge(dir) {
+  return dir === 'CALL'
+    ? '<span class="badge CALL">CALL</span>'
+    : '<span class="badge PUT">PUT</span>';
+}
+function ptTime(ts) {
+  if (!ts) return '—';
+  try { return new Date(ts).toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'}); }
+  catch { return (ts||'').slice(11,16); }
+}
 </script>
 </body>
 </html>

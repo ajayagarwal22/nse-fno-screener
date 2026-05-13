@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from app.config import settings
-from app.routers import market, scan, signals, option_chain, export, auth
+from app.routers import market, scan, signals, option_chain, export, auth, paper_trades
 from app.routers.signals import update_signals
 from app.scheduler import init_scheduler, scheduler, set_signals_callback
 
@@ -75,6 +75,10 @@ async def lifespan(app: FastAPI):
     set_signals_callback(on_signals)
     init_scheduler(settings.scan_interval_minutes)
 
+    import paper_trader
+    from app.data.kite_client import kite_client
+    paper_trader.init(kite=kite_client.kite)
+
     yield
 
     scheduler.shutdown(wait=False)
@@ -108,6 +112,7 @@ app.include_router(scan.router)
 app.include_router(signals.router)
 app.include_router(option_chain.router)
 app.include_router(export.router)
+app.include_router(paper_trades.router)
 
 
 @app.get("/", tags=["dashboard"])

@@ -135,6 +135,7 @@ async def run_scan(trade_type: TradeType = TradeType.INTRADAY) -> list[Signal]:
                     f"Confidence={signal.confidence.value} | Score={signal.gate_score}"
                 )
                 signals.append(signal)
+                import paper_trader; paper_trader.on_signal(signal)
 
         except Exception as e:
             logger.error(f"Error processing {candidate.symbol}: {e}", exc_info=True)

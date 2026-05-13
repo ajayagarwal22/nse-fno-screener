@@ -42,6 +42,7 @@ def _apply_token_live(token: str) -> None:
     _ = kite_client.kite              # re-initialise with new token
     kite_client.get_fno_instruments.cache_clear()
     kite_client.get_nse_index_tokens.cache_clear()
+    import paper_trader; paper_trader.restart_ticker(kite_client.kite)
 
 
 @router.get("/", response_class=HTMLResponse)
