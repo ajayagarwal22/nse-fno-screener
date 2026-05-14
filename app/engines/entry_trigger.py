@@ -281,7 +281,7 @@ def evaluate_signal(
     }[confidence]
 
     time_note = (
-        "Avoid holding after 2:30 PM if momentum fades."
+        "Avoid holding after 3:15 PM if momentum fades."
         if trade_type == TradeType.INTRADAY
         else "Review at end of day; trail stop after T1."
     )

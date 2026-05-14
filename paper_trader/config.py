@@ -5,8 +5,13 @@ BASE_DIR = _HERE.parent
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 DB_PATH                  = BASE_DIR / "screener_trades.db"
-INSTRUMENTS_CACHE_PATH   = _HERE / "instruments_cache.csv"
 LOG_PATH                 = _HERE / "paper_trader.log"
+
+# Instruments cache lives in /tmp to avoid iCloud Drive I/O blocking.
+# Falls back to project dir if /tmp is unavailable.
+_CACHE_DIR = Path("/tmp/nse-fno-pycache")
+_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+INSTRUMENTS_CACHE_PATH   = _CACHE_DIR / "instruments_cache.csv"
 
 # ── Strike selection ─────────────────────────────────────────────────────────
 ITM_STEPS = 1                       # 1 = first ITM strike
