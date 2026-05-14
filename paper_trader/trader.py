@@ -231,7 +231,8 @@ class PaperTrader:
             return
 
         # 6. Use signal's entry zone level; fall back to live spot if not parsed
-        zone = entry_zone if entry_zone and entry_zone > 0 else round(spot, 2)
+        zone     = entry_zone if entry_zone and entry_zone > 0 else round(spot, 2)
+        lot_size = inst.get_lot_size(symbol)
 
         # 7. Write trade to DB as WATCHING (entry premium/time filled when zone is hit)
         trade_id = db.insert_trade({
@@ -247,7 +248,7 @@ class PaperTrader:
             "entry_spot":       zone,
             "entry_time":       None,
             "status":           "WATCHING",
-            "lots":             1,
+            "lots":             lot_size,
         })
         if not trade_id:
             logger.error(f"[PaperTrader] Trade DB insert failed for signal#{signal_id}")
@@ -271,6 +272,7 @@ class PaperTrader:
             target2=target2,
             exit_time_rule=exit_rule,
             status="WATCHING",
+            lot_size=lot_size,
         )
         self._monitor.add_trade(active)
         self._subscribe({spot_token, option_token})
@@ -278,7 +280,7 @@ class PaperTrader:
         logger.info(
             f"[PaperTrader] trade#{trade_id} WATCHING "
             f"{symbol} {strike}{option_type} exp={expiry} "
-            f"zone={zone:.2f} spot={spot:.2f}"
+            f"zone={zone:.2f} spot={spot:.2f} lot={lot_size}"
         )
 
     def _skip_trade(self, signal_id: int, symbol: str, direction: str, reason: str):

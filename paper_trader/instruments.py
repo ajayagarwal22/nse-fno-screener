@@ -160,6 +160,21 @@ def resolve_token(
     return int(matches.iloc[0]["instrument_token"])
 
 
+def get_lot_size(symbol: str) -> int:
+    """Return the lot size for the given underlying from instruments data."""
+    if _df is None:
+        return 1
+    chain = _df[
+        (_df["name"] == symbol) &
+        (_df["instrument_type"].isin(["CE", "PE"]))
+    ]
+    if not chain.empty and "lot_size" in chain.columns:
+        val = chain.iloc[0]["lot_size"]
+        if pd.notna(val) and int(val) > 0:
+            return int(val)
+    return 1
+
+
 def get_nse_spot_token(symbol: str, kite) -> Optional[int]:
     """
     Return the NSE spot instrument token for an underlying.

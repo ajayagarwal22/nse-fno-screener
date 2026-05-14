@@ -51,6 +51,7 @@ class ActiveTrade:
     target2:        float
     exit_time_rule: Optional[str] = None   # "14:30" or None
     status:         str = "WATCHING"       # "WATCHING" | "ACTIVE"
+    lot_size:       int = 1
 
 
 class MonitorThread:
@@ -214,23 +215,25 @@ class MonitorThread:
         now: datetime,
     ):
         entry = trade.entry_premium or 0.0
-        pnl        = exit_premium - entry
+        pnl        = exit_premium - entry          # per unit (points)
         pnl_pct    = (pnl / entry * 100) if entry else 0.0
         outcome    = "WIN" if pnl > 0 else ("LOSS" if pnl < 0 else "BREAKEVEN")
+        pnl_rupees = round(pnl * trade.lot_size, 2)
 
         db.close_trade(trade.trade_id, {
             "exit_premium": round(exit_premium, 2),
             "exit_spot":    round(exit_spot,    2),
             "exit_time":    now.isoformat(),
             "exit_reason":  reason,
-            "pnl_points":   round(pnl,     2),
-            "pnl_percent":  round(pnl_pct, 2),
+            "pnl_points":   round(pnl,        2),
+            "pnl_percent":  round(pnl_pct,    2),
+            "pnl_rupees":   pnl_rupees,
             "outcome":      outcome,
         })
         logger.info(
             f"[Monitor] CLOSED trade#{trade.trade_id} {trade.symbol} "
             f"{trade.strike}{trade.option_type} | {reason} | "
-            f"pnl={pnl:+.2f} ({pnl_pct:+.1f}%) | {outcome}"
+            f"pnl={pnl:+.2f}pts × {trade.lot_size} = ₹{pnl_rupees:+.0f} | {outcome}"
         )
 
     # ── Fallback: LTP-based force close (used during WS reconnect) ───────────

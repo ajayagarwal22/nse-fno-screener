@@ -66,7 +66,8 @@ CREATE TABLE IF NOT EXISTS trades (
     exit_time        DATETIME,
     exit_reason      TEXT                        -- SL / T1 / T2 / TIME / MARKET_CLOSE / ERROR
                      CHECK(exit_reason IN ('SL','T1','T2','TIME','MARKET_CLOSE','ERROR',NULL)),
-    pnl_points       REAL,                       -- exit_premium - entry_premium (negative = loss)
+    pnl_points       REAL,                       -- exit_premium - entry_premium per unit
+    pnl_rupees       REAL,                       -- pnl_points * lot_size (actual money)
     pnl_percent      REAL,                       -- pnl_points / entry_premium * 100
     outcome          TEXT                        -- WIN / LOSS / BREAKEVEN
                      CHECK(outcome IN ('WIN','LOSS','BREAKEVEN',NULL)),

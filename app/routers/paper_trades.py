@@ -156,7 +156,8 @@ def summary():
         by_grade = con.execute("SELECT * FROM accuracy_by_grade ORDER BY grade").fetchall()
         extras = con.execute("""
             SELECT
-                SUM(pnl_points) AS total_pnl_points,
+                SUM(pnl_points)  AS total_pnl_points,
+                SUM(pnl_rupees)  AS total_pnl_rupees,
                 COUNT(*) FILTER (WHERE status IN ('ACTIVE','WATCHING')) AS active_count
             FROM trades WHERE status != 'SKIPPED'
         """).fetchone()
@@ -164,6 +165,7 @@ def summary():
         overall_dict = dict(overall) if overall else {}
         if extras:
             overall_dict["total_pnl_points"] = extras["total_pnl_points"]
+            overall_dict["total_pnl_rupees"] = extras["total_pnl_rupees"]
         return {
             "overall": overall_dict,
             "by_grade": [dict(r) for r in by_grade],

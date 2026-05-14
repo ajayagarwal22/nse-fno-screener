@@ -226,13 +226,18 @@ def _build_reasons(
 
 def _compute_targets(spot: float, atr: float, direction: Direction) -> tuple[str, str, str, str, str]:
     """Compute entry, SL, T1, T2 and R:R based on spot structure and ATR."""
+    # Entry zone is a small confirmation move (0.25× ATR) beyond current price
+    # so WATCHING trades wait for a real breakout rather than entering immediately.
+    confirm = round(atr * 0.25, 2)
     if direction == Direction.CALL:
-        entry = f"Premium breakout above {spot:.2f} zone"
+        entry_level = round(spot + confirm, 2)
+        entry = f"Premium breakout above {entry_level:.2f} zone"
         sl = f"Spot closes below VWAP or {spot - atr:.2f}"
         t1 = f"{spot + atr:.2f} (1:1 RR)"
         t2 = f"{spot + 2 * atr:.2f} (1:2 RR)"
     else:
-        entry = f"Premium breakdown below {spot:.2f} zone"
+        entry_level = round(spot - confirm, 2)
+        entry = f"Premium breakdown below {entry_level:.2f} zone"
         sl = f"Spot reclaims VWAP or {spot + atr:.2f}"
         t1 = f"{spot - atr:.2f} (1:1 RR)"
         t2 = f"{spot - 2 * atr:.2f} (1:2 RR)"

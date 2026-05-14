@@ -145,6 +145,7 @@ def _do_close_trade(conn: sqlite3.Connection, trade_id: int, data: dict):
             exit_time    = :exit_time,
             exit_reason  = :exit_reason,
             pnl_points   = :pnl_points,
+            pnl_rupees   = :pnl_rupees,
             pnl_percent  = :pnl_percent,
             outcome      = :outcome,
             status       = 'CLOSED'

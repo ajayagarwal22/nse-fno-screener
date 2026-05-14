@@ -895,16 +895,16 @@ function renderPtSummary(sd) {
   const losses = o.losses || 0;
   const active = (sd._active_count) || 0;
   const wr = total > 0 ? ((wins / total) * 100).toFixed(0) + '%' : '—';
-  const pnl = o.total_pnl_points != null ? o.total_pnl_points : null;
-  const pnlStr = pnl != null ? (pnl >= 0 ? '+' : '') + pnl.toFixed(1) : '—';
-  const pnlColor = pnl == null ? '#94a3b8' : pnl >= 0 ? '#4ade80' : '#f87171';
+  const pnlRs = o.total_pnl_rupees != null ? o.total_pnl_rupees : null;
+  const pnlStr = pnlRs != null ? (pnlRs >= 0 ? '+₹' : '-₹') + Math.abs(pnlRs).toFixed(2) : '—';
+  const pnlColor = pnlRs == null ? '#94a3b8' : pnlRs >= 0 ? '#4ade80' : '#f87171';
   const wrColor = total === 0 ? '#94a3b8' : +wr >= 60 ? '#4ade80' : +wr >= 40 ? '#f59e0b' : '#f87171';
   document.getElementById('pt-sum-grid').innerHTML = `
     <div class="pt-sum-card"><div class="pt-sum-val" style="color:#a78bfa">${total}</div><div class="pt-sum-lbl">Total Trades</div></div>
     <div class="pt-sum-card"><div class="pt-sum-val pnl-win">${wins}</div><div class="pt-sum-lbl">Wins</div></div>
     <div class="pt-sum-card"><div class="pt-sum-val pnl-loss">${losses}</div><div class="pt-sum-lbl">Losses</div></div>
     <div class="pt-sum-card"><div class="pt-sum-val" style="color:${wrColor}">${wr}</div><div class="pt-sum-lbl">Win Rate</div></div>
-    <div class="pt-sum-card"><div class="pt-sum-val" style="color:${pnlColor}">${pnlStr}</div><div class="pt-sum-lbl">P&amp;L (pts)</div></div>`;
+    <div class="pt-sum-card"><div class="pt-sum-val" style="color:${pnlColor}">${pnlStr}</div><div class="pt-sum-lbl">P&amp;L (₹)</div></div>`;
 }
 
 function renderPtTrades(trades) {
@@ -924,10 +924,11 @@ function renderPtTrades(trades) {
         const watching   = (t.live_status || t.status) === 'WATCHING';
         const curPrem    = t.current_premium;
         const entryPrem  = t.entry_premium;
+        const lots       = t.lots || 1;
         let runPnl = '—', pnlCls = '';
         if (!watching && entryPrem != null && curPrem != null) {
-          const diff = curPrem - entryPrem;
-          runPnl = (diff >= 0 ? '+' : '') + diff.toFixed(2);
+          const diff = (curPrem - entryPrem) * lots;
+          runPnl = '₹' + (diff >= 0 ? '+' : '') + diff.toFixed(2);
           pnlCls = diff > 0 ? 'pnl-win' : diff < 0 ? 'pnl-loss' : 'pnl-neu';
         }
         const premCell   = entryPrem != null
@@ -941,7 +942,7 @@ function renderPtTrades(trades) {
           : `<span style="color:#334155">—</span>`;
         return `<tr class="tr-active">
           <td style="color:#475569">#${t.id}</td>
-          <td class="pt-sym">${t.symbol}</td>
+          <td class="pt-sym">${t.symbol}<span style="color:#475569;font-size:10px;font-weight:400;margin-left:4px">×${t.lots||1}</span></td>
           <td>${ptBadge(t.direction)}</td>
           <td style="color:#e2e8f0;font-weight:600">${t.strike} <span style="color:#475569;font-size:11px">${t.option_type}</span></td>
           <td style="color:#64748b;font-size:11px">${(t.expiry||'').slice(0,10)}</td>
@@ -959,18 +960,19 @@ function renderPtTrades(trades) {
   cTbody.innerHTML = closed.length === 0
     ? '<tr><td colspan="10" class="pt-empty">No closed trades today</td></tr>'
     : closed.map(t => {
-        const pnl = t.pnl_points;
-        const pc  = pnl > 0 ? 'pnl-win' : pnl < 0 ? 'pnl-loss' : 'pnl-neu';
-        const sg  = pnl > 0 ? '+' : '';
-        const oc  = t.outcome === 'WIN' ? '#4ade80' : t.outcome === 'LOSS' ? '#f87171' : '#94a3b8';
+        const lots   = t.lots || 1;
+        const pnlRs  = t.pnl_rupees != null ? t.pnl_rupees : (t.pnl_points != null ? t.pnl_points * lots : null);
+        const pc     = pnlRs > 0 ? 'pnl-win' : pnlRs < 0 ? 'pnl-loss' : 'pnl-neu';
+        const sg     = pnlRs > 0 ? '+' : '';
+        const oc     = t.outcome === 'WIN' ? '#4ade80' : t.outcome === 'LOSS' ? '#f87171' : '#94a3b8';
         return `<tr>
           <td style="color:#475569">#${t.id}</td>
-          <td class="pt-sym">${t.symbol}</td>
+          <td class="pt-sym">${t.symbol}<span style="color:#475569;font-size:10px;font-weight:400;margin-left:4px">×${lots}</span></td>
           <td>${ptBadge(t.direction)}</td>
           <td style="color:#e2e8f0;font-weight:600">${t.strike} <span style="color:#475569;font-size:11px">${t.option_type}</span></td>
           <td class="pt-prem">₹${fmt(t.entry_premium)}</td>
           <td style="color:#94a3b8">₹${fmt(t.exit_premium)}</td>
-          <td class="${pc}">${pnl != null ? sg + (+pnl).toFixed(2) : '—'}</td>
+          <td class="${pc}">${pnlRs != null ? sg + '₹' + Math.abs(pnlRs).toFixed(2) : '—'}</td>
           <td class="${pc}">${t.pnl_percent != null ? sg + (+t.pnl_percent).toFixed(1) + '%' : '—'}</td>
           <td style="color:#64748b">${t.exit_reason || '—'}</td>
           <td style="color:${oc};font-weight:700">${t.outcome || '—'}</td>

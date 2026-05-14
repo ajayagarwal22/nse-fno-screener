@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 from app.config import settings
 from app.routers import market, scan, signals, option_chain, export, auth, paper_trades
@@ -148,23 +148,45 @@ async def root():
 
 @app.get("/auth/login-url", tags=["auth"])
 async def kite_login_url():
-    """Generate Kite Connect login URL for daily access token refresh."""
+    """Redirect directly to Kite Connect login page."""
     from kiteconnect import KiteConnect
     kite = KiteConnect(api_key=settings.kite_api_key)
-    return {"login_url": kite.login_url()}
+    return RedirectResponse(url=kite.login_url())
 
 
 @app.get("/auth/callback", tags=["auth"])
 async def kite_callback(request_token: str = Query(...)):
-    """Exchange request token for access token after Kite OAuth login."""
+    """Exchange request token, save to .env, restart ticker, redirect to dashboard."""
     from app.data.kite_client import kite_client
     from fastapi import HTTPException
+    import re
     try:
         access_token = kite_client.generate_access_token(request_token)
-        return {
-            "access_token": access_token,
-            "message": "Copy this token to KITE_ACCESS_TOKEN in your .env file",
-        }
+
+        # Persist new token to .env
+        env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+        if os.path.exists(env_path):
+            text = open(env_path).read()
+            if re.search(r"^KITE_ACCESS_TOKEN\s*=", text, re.MULTILINE):
+                text = re.sub(
+                    r"^KITE_ACCESS_TOKEN\s*=.*$",
+                    f"KITE_ACCESS_TOKEN={access_token}",
+                    text, flags=re.MULTILINE,
+                )
+            else:
+                text += f"\nKITE_ACCESS_TOKEN={access_token}\n"
+            open(env_path, "w").write(text)
+
+        # Hot-reload token in kite_client
+        kite_client._kite.set_access_token(access_token)
+        settings.kite_access_token = access_token
+
+        # Restart KiteTicker with new token
+        import paper_trader
+        paper_trader.restart_ticker(kite_client.kite)
+
+        logger.info(f"[Auth] Kite token refreshed and .env updated")
+        return RedirectResponse(url="/")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
