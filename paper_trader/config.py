@@ -4,11 +4,24 @@ _HERE = Path(__file__).parent
 BASE_DIR = _HERE.parent
 
 # ── Paths ────────────────────────────────────────────────────────────────────
-DB_PATH                  = BASE_DIR / "screener_trades.db"
-LOG_PATH                 = _HERE / "paper_trader.log"
+# DB and log live in ~/nse-fno-screener-data/ — outside iCloud Drive (Desktop/
+# Documents are synced and cause sqlite3 "disk I/O error" on every commit).
+_DATA_DIR = Path.home() / "nse-fno-screener-data"
+_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+DB_PATH  = _DATA_DIR / "screener_trades.db"
+LOG_PATH = _DATA_DIR / "paper_trader.log"
+
+# One-time migration: copy old DB from iCloud-synced project root if present
+_OLD_DB = BASE_DIR / "screener_trades.db"
+if _OLD_DB.exists() and not DB_PATH.exists():
+    import shutil as _shutil
+    try:
+        _shutil.copy2(str(_OLD_DB), str(DB_PATH))
+    except OSError:
+        pass
 
 # Instruments cache lives in /tmp to avoid iCloud Drive I/O blocking.
-# Falls back to project dir if /tmp is unavailable.
 _CACHE_DIR = Path("/tmp/nse-fno-pycache")
 _CACHE_DIR.mkdir(parents=True, exist_ok=True)
 INSTRUMENTS_CACHE_PATH   = _CACHE_DIR / "instruments_cache.csv"
