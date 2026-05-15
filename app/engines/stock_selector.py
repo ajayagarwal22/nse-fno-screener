@@ -3,6 +3,7 @@
 Filters the full NSE F&O universe to ranked long/short candidates based on
 relative strength, volume expansion, option chain liquidity, and OI quality.
 """
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -12,6 +13,20 @@ import pandas as pd
 from app.config import settings
 from app.data.kite_client import kite_client
 from app.engines.market_regime import Bias, MarketRegime
+
+# Option chain liquidity changes slowly — cache result per symbol for 30 min
+_liquidity_cache: dict[str, tuple[bool, float]] = {}  # symbol -> (is_liquid, ts)
+_LIQUIDITY_TTL = 1800
+
+# NSE indices screened for options — ordered by liquidity / priority.
+# SENSEX (BSE) requires BFO exchange handling and is not yet supported.
+_NSE_INDEX_CONFIGS: list[tuple[str, str]] = [
+    # (option_chain_name,  nse_tradingsymbol)
+    ("NIFTY",     "NIFTY 50"),
+    ("BANKNIFTY", "NIFTY BANK"),
+    ("FINNIFTY",  "NIFTY FIN SERVICE"),
+    ("MIDCPNIFTY","NIFTY MIDCAP SELECT"),
+]
 
 
 class Candidacy(str, Enum):
@@ -50,21 +65,95 @@ def _volume_expansion(df: pd.DataFrame, multiplier: float) -> tuple[bool, float]
 
 
 def _check_option_liquidity(symbol: str) -> bool:
-    """Quick check: does the nearest expiry option chain meet OI + spread thresholds?"""
+    """Check option chain liquidity. Result cached for 30 min — liquidity
+    rarely changes intraday and this avoids 200 quote calls per scan."""
+    cached = _liquidity_cache.get(symbol)
+    if cached and time.time() - cached[1] < _LIQUIDITY_TTL:
+        return cached[0]
     try:
         chain = kite_client.get_option_chain(symbol)
         if chain.empty:
-            return False
-        atm_rows = chain.nlargest(10, "oi")
-        if atm_rows["oi"].max() < settings.min_oi_threshold:
-            return False
-        atm_rows = atm_rows[atm_rows["ltp"] > 0]
-        if atm_rows.empty:
-            return False
-        spread_pct = ((atm_rows["ask"] - atm_rows["bid"]) / atm_rows["ltp"].clip(lower=0.01)) * 100
-        return spread_pct.median() < settings.max_bid_ask_spread_pct * 5
+            result = False
+        else:
+            atm_rows = chain.nlargest(10, "oi")
+            if atm_rows["oi"].max() < settings.min_oi_threshold:
+                result = False
+            else:
+                atm_rows = atm_rows[atm_rows["ltp"] > 0]
+                if atm_rows.empty:
+                    result = False
+                else:
+                    spread_pct = ((atm_rows["ask"] - atm_rows["bid"]) / atm_rows["ltp"].clip(lower=0.01)) * 100
+                    result = spread_pct.median() < settings.max_bid_ask_spread_pct * 5
     except Exception:
-        return False
+        result = False
+    _liquidity_cache[symbol] = (result, time.time())
+    return result
+
+
+def _build_index_candidates(
+    regime: MarketRegime,
+    nifty_daily_df: pd.DataFrame | None,
+) -> list[StockCandidate]:
+    """
+    Always-included index candidates (NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY).
+    Spot tokens fetched from Kite NSE instruments list so we never hardcode them.
+    Direction: computed from RS vs Nifty, except for NIFTY itself which uses regime bias.
+    """
+    index_tokens = kite_client.get_nse_index_tokens()
+
+    nifty_ret = pd.Series(dtype=float)
+    if nifty_daily_df is not None and not nifty_daily_df.empty:
+        nifty_ret = nifty_daily_df["close"].pct_change().dropna().tail(20)
+
+    candidates: list[StockCandidate] = []
+
+    for symbol, nse_sym in _NSE_INDEX_CONFIGS:
+        token = index_tokens.get(nse_sym)
+        if token is None:
+            continue
+        try:
+            df = kite_client.get_ohlcv(token, interval="day")
+        except Exception:
+            continue
+        if df is None or len(df) < 21:
+            continue
+
+        index_ret = df["close"].pct_change().dropna().tail(20)
+
+        if symbol == "NIFTY":
+            # RS vs itself is always 0 — use regime's nifty bias instead
+            if regime.nifty_bias == Bias.BULLISH:
+                rs, candidacy = 0.03, Candidacy.BULLISH
+                reason = "Nifty 50 — regime bullish"
+            elif regime.nifty_bias == Bias.BEARISH:
+                rs, candidacy = -0.03, Candidacy.BEARISH
+                reason = "Nifty 50 — regime bearish"
+            else:
+                continue
+        else:
+            rs = _relative_strength(index_ret, nifty_ret)
+            if rs > 0.02:
+                candidacy = Candidacy.BULLISH
+                reason = f"{nse_sym} RS={rs:+.2%} — outperforming Nifty"
+            elif rs < -0.02:
+                candidacy = Candidacy.BEARISH
+                reason = f"{nse_sym} RS={rs:+.2%} — underperforming Nifty"
+            else:
+                continue
+
+        _, vol_ratio = _volume_expansion(df, 1.0)
+        candidates.append(StockCandidate(
+            symbol=symbol,
+            instrument_token=token,
+            candidacy=candidacy,
+            rs_score=round(rs, 4),
+            volume_ratio=vol_ratio,
+            option_liquidity=True,   # index options are always liquid
+            reason=reason,
+        ))
+
+    return candidates
 
 
 def select_candidates(
@@ -101,10 +190,9 @@ def select_candidates(
 
         stock_ret = df["close"].pct_change().dropna().tail(20)
         rs = _relative_strength(stock_ret, nifty_ret)
-        vol_ok, vol_ratio = _volume_expansion(df, settings.min_volume_multiplier)
-
-        if not vol_ok:
-            continue
+        # Skip daily volume gate intraday — today's bar is incomplete so it always
+        # reads below the 20-day average. Layer 3 checks intraday volume on 5-min data.
+        _, vol_ratio = _volume_expansion(df, settings.min_volume_multiplier)
 
         opt_liquid = _check_option_liquidity(symbol)
 
@@ -138,4 +226,6 @@ def select_candidates(
         key=lambda x: x.rs_score,
     )[:top_n]
 
-    return bullish + bearish
+    # Index candidates always prepended — they are highest priority and most liquid
+    index_cands = _build_index_candidates(regime, nifty_daily_df)
+    return index_cands + bullish + bearish

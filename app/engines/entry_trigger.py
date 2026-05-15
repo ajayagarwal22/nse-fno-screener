@@ -28,29 +28,30 @@ class Confidence(str, Enum):
 
 _CONFIDENCE_MIN_ALERT = {"A+", "A-", "B"}
 
-# Weights for each gate (total = 100)
+# MTF gate weights (total = 100)
+# rsi_divergence is the highest-weight factor — required for A+, boosts A-/B
 _CALL_GATES = [
-    ("regime_supportive", 15),
-    ("rs_positive", 10),
-    ("above_vwap", 15),
-    ("ema_bullish", 15),
-    ("rsi_bullish", 10),
-    ("macd_bullish", 10),
-    ("put_writing_or_short_covering", 10),
-    ("pcr_supportive", 10),
-    ("volume_breakout", 5),
+    ("regime_supportive",        10),
+    ("rs_positive",               5),
+    ("rsi_divergence",           30),   # Highest weight — MTF 15-min
+    ("htf_trend_bullish",        15),   # Daily trend filter
+    ("macd_bull_cross",          15),   # LTF 5-min confirmation
+    ("above_vwap",               10),   # LTF 5-min confirmation
+    ("volume_expansion",          5),   # LTF 5-min confirmation
+    ("put_writing_or_short_covering", 5),
+    ("pcr_supportive",            5),
 ]
 
 _PUT_GATES = [
-    ("regime_supportive", 15),
-    ("rs_negative", 10),
-    ("below_vwap", 15),
-    ("ema_bearish", 15),
-    ("rsi_bearish", 10),
-    ("macd_bearish", 10),
-    ("call_writing_or_short_buildup", 10),
-    ("pcr_bearish", 10),
-    ("volume_breakout", 5),
+    ("regime_supportive",        10),
+    ("rs_negative",               5),
+    ("rsi_divergence",           30),   # Highest weight — MTF 15-min
+    ("htf_trend_bearish",        15),   # Daily trend filter
+    ("macd_bear_cross",          15),   # LTF 5-min confirmation
+    ("below_vwap",               10),   # LTF 5-min confirmation
+    ("volume_expansion",          5),   # LTF 5-min confirmation
+    ("call_writing_or_short_buildup", 5),
+    ("pcr_bearish",               5),
 ]
 
 
@@ -90,6 +91,11 @@ class Signal:
     pcr_signal: str
     iv_status: str
 
+    # MTF divergence info
+    divergence_detected: bool = False
+    divergence_strength: float = 0.0
+    htf_trend: str = "NEUTRAL"
+
     def to_alert_text(self) -> str:
         opt_line = ""
         if self.option:
@@ -128,17 +134,14 @@ def _score_call_gates(
             RegimeType.TRENDING_BEARISH, RegimeType.EVENT_RISK, RegimeType.HIGH_VOL_EXPANSION
         ) and regime.overall_bias != Bias.BEARISH,
         "rs_positive": rs_score > 0.01,
-        "above_vwap": tech.breakdown.get("above_vwap", False),
-        "ema_bullish": (
-            tech.breakdown.get("ema20_above_ema50", False)
-            and tech.breakdown.get("ema50_above_ema200", False)
-        ),
-        "rsi_bullish": 55 <= tech.rsi <= 75,
-        "macd_bullish": tech.macd_hist > 0 and tech.breakdown.get("macd_hist_expanding", False),
+        "rsi_divergence": tech.rsi_divergence,
+        "htf_trend_bullish": tech.htf_trend == "BULLISH",
+        "macd_bull_cross": tech.macd_cross,
+        "above_vwap": tech.above_vwap,
+        "volume_expansion": tech.volume_expansion,
         "put_writing_or_short_covering": deriv.writing_bias == WritingBias.PUT_WRITING or
             deriv.oi_interpretation == OIInterpretation.SHORT_COVERING,
         "pcr_supportive": deriv.pcr >= 0.8,
-        "volume_breakout": tech.breakdown.get("volume_expansion", False),
     }
 
 
@@ -153,32 +156,29 @@ def _score_put_gates(
             RegimeType.TRENDING_BULLISH, RegimeType.EVENT_RISK
         ) and regime.overall_bias != Bias.BULLISH,
         "rs_negative": rs_score < -0.01,
-        "below_vwap": tech.breakdown.get("below_vwap", False),
-        "ema_bearish": (
-            tech.breakdown.get("ema20_below_ema50", False)
-            and tech.breakdown.get("ema50_below_ema200", False)
-        ),
-        "rsi_bearish": tech.rsi < 45,
-        "macd_bearish": tech.macd_hist < 0 and tech.breakdown.get("macd_hist_expanding_neg", False),
+        "rsi_divergence": tech.rsi_divergence,
+        "htf_trend_bearish": tech.htf_trend == "BEARISH",
+        "macd_bear_cross": tech.macd_cross,
+        "below_vwap": not tech.above_vwap,
+        "volume_expansion": tech.volume_expansion,
         "call_writing_or_short_buildup": deriv.writing_bias == WritingBias.CALL_WRITING or
             deriv.oi_interpretation == OIInterpretation.SHORT_BUILDUP,
         "pcr_bearish": deriv.pcr < 1.0,
-        "volume_breakout": tech.breakdown.get("volume_expansion", False),
     }
 
 
 def _weighted_score(gates: dict[str, bool], gate_defs: list[tuple[str, int]]) -> float:
-    total_weight = sum(w for _, w in gate_defs)
-    passed_weight = sum(w for name, w in gate_defs if gates.get(name, False))
-    return (passed_weight / total_weight) * 100
+    return float(sum(w for name, w in gate_defs if gates.get(name, False)))
 
 
-def _grade_confidence(score: float, total_gates: int, passed_gates: int) -> Optional[Confidence]:
-    if passed_gates == total_gates and score >= 95:
+def _grade_confidence(score: float, gates: dict[str, bool]) -> Optional[Confidence]:
+    # A+ requires RSI divergence — it is the highest-conviction setup
+    has_div = gates.get("rsi_divergence", False)
+    if score >= 85 and has_div:
         return Confidence.A_PLUS
-    elif passed_gates >= total_gates - 1 and score >= 75:
+    elif score >= 65:
         return Confidence.A_MINUS
-    elif passed_gates >= total_gates - 3 and score >= 55:
+    elif score >= 55:
         return Confidence.B
     return None
 
@@ -190,21 +190,33 @@ def _build_reasons(
     regime: MarketRegime,
 ) -> list[str]:
     reasons = []
+    # RSI divergence is the primary reason — always listed first
+    if tech.rsi_divergence:
+        strength_pct = f"{tech.divergence_strength * 100:.0f}%"
+        reasons.append(
+            f"RSI {tech.divergence_type} Divergence on 15-min (strength={strength_pct})"
+        )
+    if tech.htf_trend != "NEUTRAL":
+        ema_note = " — EMA stack aligned" if tech.htf_ema_aligned else ""
+        reasons.append(f"Daily trend {tech.htf_trend}{ema_note}")
+
     if direction == Direction.CALL:
-        if tech.breakdown.get("above_vwap"):
+        if tech.above_vwap:
             reasons.append(f"Price above VWAP ({tech.vwap:.2f})")
-        reasons.append(f"RSI {tech.rsi:.1f} — bullish range")
-        if tech.macd_hist > 0:
-            reasons.append(f"MACD positive histogram ({tech.macd_hist:+.2f})")
+        if tech.macd_cross:
+            reasons.append(f"MACD histogram flipped bullish ({tech.macd_hist:+.2f})")
+        if tech.volume_expansion:
+            reasons.append("Volume expansion confirmed on 5-min")
         reasons.append(f"OI: {deriv.oi_interpretation.value}")
         reasons.append(f"PCR {deriv.pcr:.2f} ({deriv.pcr_signal.value})")
         reasons.append(f"VIX {regime.vix_data.value:.1f} ({regime.vix_data.signal})")
     else:
-        if tech.breakdown.get("below_vwap"):
+        if not tech.above_vwap:
             reasons.append(f"Price below VWAP ({tech.vwap:.2f})")
-        reasons.append(f"RSI {tech.rsi:.1f} — weak")
-        if tech.macd_hist < 0:
-            reasons.append(f"MACD negative expansion ({tech.macd_hist:+.2f})")
+        if tech.macd_cross:
+            reasons.append(f"MACD histogram flipped bearish ({tech.macd_hist:+.2f})")
+        if tech.volume_expansion:
+            reasons.append("Volume expansion confirmed on 5-min")
         reasons.append(f"OI: {deriv.oi_interpretation.value}")
         reasons.append(f"Heavy CE writing at {deriv.strong_call_wall:.0f}")
         reasons.append(f"PCR {deriv.pcr:.2f} ({deriv.pcr_signal.value})")
@@ -214,13 +226,18 @@ def _build_reasons(
 
 def _compute_targets(spot: float, atr: float, direction: Direction) -> tuple[str, str, str, str, str]:
     """Compute entry, SL, T1, T2 and R:R based on spot structure and ATR."""
+    # Entry zone is a small confirmation move (0.25× ATR) beyond current price
+    # so WATCHING trades wait for a real breakout rather than entering immediately.
+    confirm = round(atr * 0.25, 2)
     if direction == Direction.CALL:
-        entry = f"Premium breakout above {spot:.2f} zone"
+        entry_level = round(spot + confirm, 2)
+        entry = f"Premium breakout above {entry_level:.2f} zone"
         sl = f"Spot closes below VWAP or {spot - atr:.2f}"
         t1 = f"{spot + atr:.2f} (1:1 RR)"
         t2 = f"{spot + 2 * atr:.2f} (1:2 RR)"
     else:
-        entry = f"Premium breakdown below {spot:.2f} zone"
+        entry_level = round(spot - confirm, 2)
+        entry = f"Premium breakdown below {entry_level:.2f} zone"
         sl = f"Spot reclaims VWAP or {spot + atr:.2f}"
         t1 = f"{spot - atr:.2f} (1:1 RR)"
         t2 = f"{spot - 2 * atr:.2f} (1:2 RR)"
@@ -249,8 +266,7 @@ def evaluate_signal(
         gate_defs = _PUT_GATES
 
     score = _weighted_score(gates, gate_defs)
-    passed = sum(1 for v in gates.values() if v)
-    confidence = _grade_confidence(score, len(gate_defs), passed)
+    confidence = _grade_confidence(score, gates)
 
     if confidence is None:
         return None
@@ -265,7 +281,7 @@ def evaluate_signal(
     }[confidence]
 
     time_note = (
-        "Avoid holding after 2:30 PM if momentum fades."
+        "Avoid holding after 3:15 PM if momentum fades."
         if trade_type == TradeType.INTRADAY
         else "Review at end of day; trail stop after T1."
     )
@@ -292,10 +308,13 @@ def evaluate_signal(
         vix_level=regime.vix_data.value,
         vix_signal=regime.vix_data.signal,
         rsi_value=tech.rsi,
-        macd_status=f"hist={tech.macd_hist:+.3f}",
-        vwap_status=f"{'Above' if tech.breakdown.get('above_vwap') else 'Below'} VWAP ({tech.vwap:.2f})",
+        macd_status=f"{'Bullish cross' if tech.macd_cross and tech.macd_hist > 0 else 'Bearish cross' if tech.macd_cross else 'Flat'} (hist={tech.macd_hist:+.3f})",
+        vwap_status=f"{'Above' if tech.above_vwap else 'Below'} VWAP ({tech.vwap:.2f})",
         oi_interpretation=deriv.oi_interpretation.value,
         pcr_value=deriv.pcr,
         pcr_signal=deriv.pcr_signal.value,
         iv_status=f"IV skew={deriv.iv_skew:+.1f}%",
+        divergence_detected=tech.rsi_divergence,
+        divergence_strength=tech.divergence_strength,
+        htf_trend=tech.htf_trend,
     )

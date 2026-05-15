@@ -157,15 +157,15 @@ def analyze_derivatives(
     call_wall = float(call_wall_row["strike"].iloc[0]) if not call_wall_row.empty else 0.0
     put_wall = float(put_wall_row["strike"].iloc[0]) if not put_wall_row.empty else 0.0
 
+    # supports_call/put: true if derivatives are broadly aligned — not a hard block,
+    # just a signal quality indicator used by Layer 6 gates.
     supports_call = (
-        oi_interp in (OIInterpretation.LONG_BUILDUP, OIInterpretation.SHORT_COVERING)
-        and writing_bias == WritingBias.PUT_WRITING
-        and pcr_signal in (PCRSignal.NEUTRAL, PCRSignal.BULLISH)
+        pcr_signal in (PCRSignal.NEUTRAL, PCRSignal.BULLISH)
+        and writing_bias != WritingBias.CALL_WRITING
     )
     supports_put = (
-        oi_interp in (OIInterpretation.SHORT_BUILDUP, OIInterpretation.LONG_UNWINDING)
-        and writing_bias == WritingBias.CALL_WRITING
-        and pcr_signal in (PCRSignal.NEUTRAL, PCRSignal.BEARISH)
+        pcr_signal in (PCRSignal.NEUTRAL, PCRSignal.BEARISH)
+        and writing_bias != WritingBias.PUT_WRITING
     )
 
     summary = (

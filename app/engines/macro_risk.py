@@ -80,17 +80,26 @@ def _fetch_fii_flow() -> Optional[float]:
 
 
 def _fetch_usdinr() -> Optional[float]:
-    """Fetch USD/INR via Yahoo Finance (free endpoint)."""
-    try:
-        url = "https://query1.finance.yahoo.com/v8/finance/chart/USDINR=X?interval=1d&range=1d"
-        with httpx.Client(timeout=8) as client:
-            resp = client.get(url)
-            resp.raise_for_status()
-            result = resp.json()
-            price = result["chart"]["result"][0]["meta"]["regularMarketPrice"]
-            return float(price)
-    except Exception:
-        return None
+    """Fetch USD/INR via Yahoo Finance (free endpoint). Tries query1 then query2."""
+    _headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Accept": "application/json",
+        "Referer": "https://finance.yahoo.com/",
+    }
+    for host in ("query1", "query2"):
+        url = f"https://{host}.finance.yahoo.com/v8/finance/chart/USDINR=X?interval=1d&range=1d"
+        try:
+            with httpx.Client(headers=_headers, timeout=8, follow_redirects=True) as client:
+                resp = client.get(url)
+                if resp.status_code == 429:
+                    continue
+                resp.raise_for_status()
+                result = resp.json()
+                price = result["chart"]["result"][0]["meta"]["regularMarketPrice"]
+                return float(price)
+        except Exception:
+            continue
+    return None
 
 
 def assess_macro_risk() -> MacroRiskAssessment:

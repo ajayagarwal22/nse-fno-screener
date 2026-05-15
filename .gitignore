@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Data & logs (never commit)
+*.db
+*.db-wal
+*.db-shm
+*.log
+exports/
+
+# paper_trader data files
+paper_trader/instruments_cache.csv
+paper_trader/paper_trader.log
+
+# Secrets
+.env
+
+# Node / Electron
+desktop/node_modules/
+desktop/.npmrc
+
+# macOS
+.DS_Store

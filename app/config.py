@@ -1,5 +1,33 @@
+import os
+import time
+
 from pydantic_settings import BaseSettings
 from pydantic import Field
+
+
+def _preload_env(env_path: str, retries: int = 5, delay: float = 1.0) -> None:
+    """Read .env into os.environ with retries so iCloud sync hiccups don't crash startup."""
+    for attempt in range(retries):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, _, val = line.partition("=")
+                    key = key.strip()
+                    val = val.strip()
+                    if key and key not in os.environ:
+                        os.environ[key] = val
+            return
+        except OSError:
+            if attempt < retries - 1:
+                time.sleep(delay)
+
+
+_env_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+if os.path.exists(_env_file):
+    _preload_env(_env_file)
 
 
 class Settings(BaseSettings):
@@ -26,7 +54,7 @@ class Settings(BaseSettings):
     exports_dir: str = Field(default="./exports", env="EXPORTS_DIR")
 
     class Config:
-        env_file = ".env"
+        env_file = None  # Already loaded into os.environ above
         extra = "ignore"
 
 

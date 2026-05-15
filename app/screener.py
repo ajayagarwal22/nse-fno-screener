@@ -24,6 +24,12 @@ logger = logging.getLogger(__name__)
 _NIFTY_TOKEN = 256265
 _BANKNIFTY_TOKEN = 260105
 
+_last_candidates: list = []
+
+
+def get_candidates() -> list:
+    return _last_candidates
+
 
 def _fetch_index_ohlcv(token: int):
     try:
@@ -57,7 +63,10 @@ async def run_scan(trade_type: TradeType = TradeType.INTRADAY) -> list[Signal]:
         return []
 
     # --- Layer 2: Stock selection ---
-    candidates = select_candidates(regime, nifty_daily_df=nifty_df)
+    nifty_daily_df = kite_client.get_ohlcv(_NIFTY_TOKEN, interval="day")
+    candidates = select_candidates(regime, nifty_daily_df=nifty_daily_df)
+    global _last_candidates
+    _last_candidates = candidates
     logger.info(f"[Layer 2] {len(candidates)} candidates shortlisted")
 
     # Process each candidate through Layers 3–6
@@ -68,26 +77,32 @@ async def run_scan(trade_type: TradeType = TradeType.INTRADAY) -> list[Signal]:
                 Direction.CALL if candidate.candidacy == Candidacy.BULLISH else Direction.PUT
             )
 
-            # Skip if regime doesn't support this direction
-            if direction == Direction.CALL and not regime.call_buying_environment:
-                continue
-            if direction == Direction.PUT and not regime.put_buying_environment:
-                continue
-
-            # --- Layer 3: Technical confluence ---
+            # --- Layer 3: Technical confluence (MTF) ---
             token = candidate.instrument_token
-            df = kite_client.get_ohlcv(token, interval="5minute")
-            if df is None or df.empty:
+            df_5min = kite_client.get_ohlcv(token, interval="5minute")
+            if df_5min is None or df_5min.empty:
                 continue
+            df_15min = kite_client.get_ohlcv(token, interval="15minute")
+            df_daily = kite_client.get_ohlcv(token, interval="day")
 
             tech = (
-                score_bullish_confluence(df)
+                score_bullish_confluence(df_5min, df_mtf=df_15min, df_htf=df_daily)
                 if direction == Direction.CALL
-                else score_bearish_confluence(df)
+                else score_bearish_confluence(df_5min, df_mtf=df_15min, df_htf=df_daily)
             )
-            if tech.score < 55:
-                logger.debug(f"[Layer 3] {symbol} score={tech.score:.0f} — skip")
+            if tech.score < 45:
+                logger.debug(
+                    f"[Layer 3] {symbol} score={tech.score:.0f} "
+                    f"div={tech.rsi_divergence} htf={tech.htf_trend} — skip"
+                )
                 continue
+
+            # Block counter-trend setups without divergence (most common fake signal)
+            if direction == Direction.CALL and tech.htf_trend == "BEARISH" and not tech.rsi_divergence:
+                logger.debug(f"[Layer 3] {symbol} CALL vs BEARISH daily — no divergence — skip")
+                continue
+            if direction == Direction.PUT and tech.htf_trend == "BULLISH" and not tech.rsi_divergence:
+                logger.debug(f"[Layer 3] {symbol} PUT vs BULLISH daily — no divergence — skip")
 
             # --- Layer 4: Derivatives intelligence ---
             ltp_map = kite_client.get_ltp([symbol])
@@ -96,12 +111,6 @@ async def run_scan(trade_type: TradeType = TradeType.INTRADAY) -> list[Signal]:
                 continue
 
             deriv = analyze_derivatives(symbol, spot)
-            if direction == Direction.CALL and not deriv.supports_call_buy:
-                logger.debug(f"[Layer 4] {symbol} derivatives don't support CALL")
-                continue
-            if direction == Direction.PUT and not deriv.supports_put_buy:
-                logger.debug(f"[Layer 4] {symbol} derivatives don't support PUT")
-                continue
 
             # --- Layer 5: Option selection ---
             opt_type = OptionType.CE if direction == Direction.CALL else OptionType.PE
@@ -126,6 +135,7 @@ async def run_scan(trade_type: TradeType = TradeType.INTRADAY) -> list[Signal]:
                     f"Confidence={signal.confidence.value} | Score={signal.gate_score}"
                 )
                 signals.append(signal)
+                import paper_trader; paper_trader.on_signal(signal)
 
         except Exception as e:
             logger.error(f"Error processing {candidate.symbol}: {e}", exc_info=True)

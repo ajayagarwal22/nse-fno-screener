@@ -1,5 +1,6 @@
 """Zerodha KiteConnect wrapper providing clean async-friendly interfaces."""
 import asyncio
+import time
 from datetime import date, datetime, timedelta
 from functools import lru_cache
 from typing import Optional
@@ -8,7 +9,31 @@ import pandas as pd
 from kiteconnect import KiteConnect
 
 from app.config import settings
+
+# Short-lived OHLCV cache — prevents duplicate fetches within a single scan cycle.
+# Key: (instrument_token, interval). TTL: 300 s (one scan window).
+_ohlcv_cache: dict[tuple, tuple] = {}  # key -> (df, fetched_at)
+_OHLCV_TTL = 300
 from app.data import cache
+
+# Maps our option-chain symbol names to the correct Kite quote key.
+# Index LTP cannot be fetched with a plain "NSE:<name>" — NSE uses full names.
+# SENSEX is on BSE/BFO; its option chain requires separate BFO handling (not yet supported).
+_INDEX_LTP_KEYS: dict[str, str] = {
+    "NIFTY":      "NSE:NIFTY 50",
+    "BANKNIFTY":  "NSE:NIFTY BANK",
+    "FINNIFTY":   "NSE:NIFTY FIN SERVICE",
+    "MIDCPNIFTY": "NSE:NIFTY MIDCAP SELECT",
+}
+
+# Maps our option-chain symbol names to the NSE tradingsymbol used in
+# kite.instruments("NSE") for spot token lookup.
+_INDEX_NSE_TRADINGSYMBOLS: dict[str, str] = {
+    "NIFTY":      "NIFTY 50",
+    "BANKNIFTY":  "NIFTY BANK",
+    "FINNIFTY":   "NIFTY FIN SERVICE",
+    "MIDCPNIFTY": "NIFTY MIDCAP SELECT",
+}
 
 
 class KiteClient:
@@ -36,6 +61,20 @@ class KiteClient:
         df = pd.DataFrame(instruments)
         return df
 
+    @lru_cache(maxsize=1)
+    def get_nse_index_tokens(self) -> dict[str, int]:
+        """Return {nse_tradingsymbol: token} for all NSE index instruments. Cached."""
+        try:
+            instruments = self.kite.instruments("NSE")
+            return {
+                inst["tradingsymbol"]: int(inst["instrument_token"])
+                for inst in instruments
+                if inst.get("instrument_type") == "INDICES"
+            }
+        except Exception:
+            # Confirmed fallback tokens for the two main indices
+            return {"NIFTY 50": 256265, "NIFTY BANK": 260105}
+
     def get_fno_stock_symbols(self) -> list[str]:
         """Return unique underlying symbols in the F&O universe."""
         df = self.get_fno_instruments()
@@ -52,11 +91,21 @@ class KiteClient:
         from_date: Optional[date] = None,
         to_date: Optional[date] = None,
     ) -> pd.DataFrame:
-        """Fetch historical OHLCV candles for an instrument."""
+        """Fetch historical OHLCV candles. Results are cached for 300 s when
+        no explicit date range is given, preventing duplicate Kite API calls
+        within the same scan cycle."""
+        explicit_range = from_date is not None or to_date is not None
+
+        if not explicit_range:
+            key = (instrument_token, interval)
+            cached = _ohlcv_cache.get(key)
+            if cached and time.time() - cached[1] < _OHLCV_TTL:
+                return cached[0]
+
         if to_date is None:
             to_date = datetime.now()
         if from_date is None:
-            from_date = to_date - timedelta(days=5)
+            from_date = to_date - timedelta(days=300 if interval == "day" else 5)
 
         records = self.kite.historical_data(
             instrument_token=instrument_token,
@@ -65,10 +114,13 @@ class KiteClient:
             interval=interval,
         )
         df = pd.DataFrame(records)
-        if df.empty:
-            return df
-        df.set_index("date", inplace=True)
-        df.index = pd.to_datetime(df.index)
+        if not df.empty:
+            df.set_index("date", inplace=True)
+            df.index = pd.to_datetime(df.index)
+
+        if not explicit_range:
+            _ohlcv_cache[(instrument_token, interval)] = (df, time.time())
+
         return df
 
     # ------------------------------------------------------------------
@@ -76,12 +128,16 @@ class KiteClient:
     # ------------------------------------------------------------------
 
     def get_ltp(self, trading_symbols: list[str], exchange: str = "NSE") -> dict[str, float]:
-        """Return last traded prices for a list of symbols."""
-        instrument_keys = [f"{exchange}:{sym}" for sym in trading_symbols]
-        data = self.kite.ltp(instrument_keys)
+        """Return last traded prices. Handles index symbols (NIFTY, BANKNIFTY, etc.) automatically."""
+        key_to_sym: dict[str, str] = {}
+        for sym in trading_symbols:
+            key = _INDEX_LTP_KEYS.get(sym, f"{exchange}:{sym}")
+            key_to_sym[key] = sym
+
+        data = self.kite.ltp(list(key_to_sym))
         result = {}
         for key, val in data.items():
-            sym = key.split(":")[1]
+            sym = key_to_sym.get(key, key.split(":")[1])
             price = val["last_price"]
             result[sym] = price
             cache.set_ltp(sym, price)
