@@ -370,6 +370,7 @@ async function get(path, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
       const r = await fetch(API + path);
+      if (r.status === 401) { window.location.href = '/auth/login'; return; }
       if (!r.ok) throw new Error(r.status);
       return await r.json();
     } catch(e) {
@@ -824,9 +825,7 @@ function fmt(v) {
 }
 function showAuthNotice() {
   document.getElementById('auth-notice').style.display = 'flex';
-  fetch('/auth/login-url').then(r=>r.json()).then(d=>{
-    document.getElementById('auth-link').href = d.login_url;
-  }).catch(()=>{});
+  document.getElementById('auth-link').href = '/auth/login';
 }
 
 // ── WebSocket ─────────────────────────────────────────────────────

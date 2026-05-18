@@ -7,12 +7,14 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from kiteconnect.exceptions import TokenException
 
 from app.config import settings
 from app.routers import market, scan, signals, option_chain, export, auth, paper_trades
+from app.routers.auth import token_is_valid
 from app.routers.signals import update_signals
 from app.scheduler import init_scheduler, scheduler, set_signals_callback
 
@@ -115,9 +117,22 @@ app.include_router(export.router)
 app.include_router(paper_trades.router)
 
 
+@app.exception_handler(TokenException)
+async def handle_token_exception(request: Request, exc: TokenException):
+    """Redirect browser requests to Kite login when token expires mid-session."""
+    if "text/html" in request.headers.get("accept", ""):
+        return RedirectResponse(url="/auth/login")
+    return JSONResponse(
+        status_code=401,
+        content={"error": "token_expired", "login_url": "/auth/login"},
+    )
+
+
 @app.get("/", tags=["dashboard"])
 async def dashboard():
-    """Serve the visual dashboard."""
+    """Serve the visual dashboard, redirecting to Kite login if token is expired."""
+    if not await token_is_valid():
+        return RedirectResponse(url="/auth/login")
     html_path = os.path.join(os.path.dirname(__file__), "dashboard.html")
     return FileResponse(html_path, media_type="text/html")
 
@@ -139,56 +154,11 @@ async def root():
             "export_csv": "GET /export/signals.csv",
             "export_json": "GET /export/signals.json",
             "websocket_alerts": "ws://<host>/ws/alerts",
-            "kite_login": "GET /auth/login-url",
+            "kite_login": "GET /auth/login",
             "kite_callback": "GET /auth/callback?request_token=...",
             "docs": "/docs",
         },
     }
-
-
-@app.get("/auth/login-url", tags=["auth"])
-async def kite_login_url():
-    """Redirect directly to Kite Connect login page."""
-    from kiteconnect import KiteConnect
-    kite = KiteConnect(api_key=settings.kite_api_key)
-    return RedirectResponse(url=kite.login_url())
-
-
-@app.get("/auth/callback", tags=["auth"])
-async def kite_callback(request_token: str = Query(...)):
-    """Exchange request token, save to .env, restart ticker, redirect to dashboard."""
-    from app.data.kite_client import kite_client
-    from fastapi import HTTPException
-    import re
-    try:
-        access_token = kite_client.generate_access_token(request_token)
-
-        # Persist new token to .env
-        env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
-        if os.path.exists(env_path):
-            text = open(env_path).read()
-            if re.search(r"^KITE_ACCESS_TOKEN\s*=", text, re.MULTILINE):
-                text = re.sub(
-                    r"^KITE_ACCESS_TOKEN\s*=.*$",
-                    f"KITE_ACCESS_TOKEN={access_token}",
-                    text, flags=re.MULTILINE,
-                )
-            else:
-                text += f"\nKITE_ACCESS_TOKEN={access_token}\n"
-            open(env_path, "w").write(text)
-
-        # Hot-reload token in kite_client
-        kite_client._kite.set_access_token(access_token)
-        settings.kite_access_token = access_token
-
-        # Restart KiteTicker with new token
-        import paper_trader
-        paper_trader.restart_ticker(kite_client.kite)
-
-        logger.info(f"[Auth] Kite token refreshed and .env updated")
-        return RedirectResponse(url="/")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.websocket("/ws/alerts")

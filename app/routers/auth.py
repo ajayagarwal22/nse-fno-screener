@@ -1,16 +1,17 @@
 """Kite Connect OAuth flow.
 
-Morning routine:
-  1. Open http://localhost:9000/auth/
-  2. Click "Login with Zerodha"
-  3. Complete Zerodha login
-  4. Token is auto-saved to .env and applied live — no restart needed.
+Flow (fully automatic):
+  1. Open http://localhost:9000  → server checks token validity
+  2. If token is invalid → auto-redirect to /auth/login → Zerodha login page
+  3. After Zerodha login → /auth/callback saves token, marks it valid, redirects to /
 
 Redirect URL to register in Kite developer console:
   http://localhost:9000/auth/callback
 """
+import asyncio
 import os
 import re
+import time
 from pathlib import Path
 
 from fastapi import APIRouter
@@ -21,6 +22,33 @@ from app.config import settings
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _ENV_PATH = Path(__file__).parent.parent.parent / ".env"
+
+# ---------------------------------------------------------------------------
+# Token validity cache (avoids a Kite API call on every page load)
+# ---------------------------------------------------------------------------
+
+_token_valid_until: float = 0.0
+_TOKEN_TTL = 300  # re-check every 5 minutes
+
+
+async def token_is_valid() -> bool:
+    """Return True if the Kite access token is (still) valid."""
+    global _token_valid_until
+    if time.time() < _token_valid_until:
+        return True
+    try:
+        from app.data.kite_client import kite_client
+        await asyncio.to_thread(kite_client.kite.profile)
+        _token_valid_until = time.time() + _TOKEN_TTL
+        return True
+    except Exception:
+        _token_valid_until = 0.0
+        return False
+
+
+def _mark_token_valid() -> None:
+    global _token_valid_until
+    _token_valid_until = time.time() + _TOKEN_TTL
 
 
 def _update_env_token(token: str) -> None:
@@ -43,6 +71,13 @@ def _apply_token_live(token: str) -> None:
     kite_client.get_fno_instruments.cache_clear()
     kite_client.get_nse_index_tokens.cache_clear()
     import paper_trader; paper_trader.restart_ticker(kite_client.kite)
+
+
+@router.get("/status")
+async def auth_status():
+    """Check whether the current Kite token is valid."""
+    valid = await token_is_valid()
+    return {"valid": valid}
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -96,46 +131,41 @@ async def kite_login():
 @router.get("/callback", response_class=HTMLResponse)
 async def kite_callback(request_token: str = "", status: str = ""):
     if status != "success" or not request_token:
-        return HTMLResponse(_result_page(
-            ok=False,
-            message=f"Login failed or cancelled (status={status!r}).",
-        ))
+        return HTMLResponse(_error_page(f"Login failed or cancelled (status={status!r})."))
     try:
         from app.data.kite_client import kite_client
-        access_token = kite_client.generate_access_token(request_token)
+        access_token = await asyncio.to_thread(
+            kite_client.generate_access_token, request_token
+        )
         _update_env_token(access_token)
         _apply_token_live(access_token)
-        return HTMLResponse(_result_page(
-            ok=True,
-            message=f"Token saved and applied. Preview: <code>{access_token[:8]}…</code>",
-        ))
+        _mark_token_valid()
+        return RedirectResponse(url="/")
     except Exception as exc:
-        return HTMLResponse(_result_page(ok=False, message=str(exc)))
+        return HTMLResponse(_error_page(str(exc)))
 
 
-def _result_page(ok: bool, message: str) -> str:
-    icon = "✅" if ok else "❌"
-    color = "#22c55e" if ok else "#ef4444"
+def _error_page(message: str) -> str:
     return f"""<!DOCTYPE html>
 <html>
 <head>
-  <title>Kite Auth</title>
-  <meta http-equiv="refresh" content="3;url=/">
+  <title>Kite Auth Error</title>
+  <meta http-equiv="refresh" content="4;url=/auth/login">
   <style>
     body {{ font-family:-apple-system,sans-serif; background:#080b12; color:#e2e8f0;
            display:flex; align-items:center; justify-content:center; height:100vh; margin:0; }}
-    .card {{ background:#0d1117; border:1px solid #1e2533; border-radius:12px;
+    .card {{ background:#0d1117; border:1px solid #3b1c1c; border-radius:12px;
              padding:36px 48px; text-align:center; max-width:460px; }}
     .icon {{ font-size:40px; margin-bottom:12px; }}
-    .msg {{ color:{color}; font-size:14px; margin-bottom:16px; }}
+    .msg {{ color:#ef4444; font-size:14px; margin-bottom:16px; }}
     .sub {{ color:#475569; font-size:12px; }}
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="icon">{icon}</div>
+    <div class="icon">❌</div>
     <div class="msg">{message}</div>
-    <div class="sub">Redirecting to dashboard in 3 seconds…</div>
+    <div class="sub">Retrying login in 4 seconds…</div>
   </div>
 </body>
 </html>"""
