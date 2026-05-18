@@ -172,7 +172,10 @@ button:disabled { opacity:.5; cursor:not-allowed; }
 .idx-sig-reason { font-size:10px; color:#475569; margin-top:7px; line-height:1.5; border-top:1px solid #1e2533; padding-top:6px; }
 
 /* ── Tab bar ── */
-.tab-bar { display:flex; gap:0; border-bottom:1px solid #1e2533; margin-bottom:18px; }
+.tab-bar { display:flex; gap:0; border-bottom:1px solid #1e2533; margin-bottom:18px; align-items:center; }
+.tab-bar .spacer { flex:1; }
+.btn-download-xlsx { background:#1e2533; border:1px solid #334155; border-radius:6px; color:#94a3b8; cursor:pointer; font-family:inherit; font-size:11px; font-weight:600; padding:5px 13px; text-decoration:none; transition:background .15s,color .15s; margin-bottom:1px; }
+.btn-download-xlsx:hover { background:#7c3aed; border-color:#7c3aed; color:#fff; }
 .tab-btn { background:none; border:none; border-bottom:2px solid transparent; color:#475569; cursor:pointer; font-family:inherit; font-size:12px; font-weight:600; margin-bottom:-1px; padding:9px 20px; transition:color .15s; }
 .tab-btn:hover { color:#94a3b8; }
 .tab-btn.active { border-bottom-color:#a78bfa; color:#a78bfa; }
@@ -276,6 +279,8 @@ button:disabled { opacity:.5; cursor:not-allowed; }
   <div class="tab-bar">
     <button class="tab-btn active" id="tab-signals" onclick="switchTab('signals')">Signals</button>
     <button class="tab-btn" id="tab-trades" onclick="switchTab('trades')">Paper Trades <span class="tab-badge" id="tab-trades-badge">0</span></button>
+    <div class="spacer"></div>
+    <a class="btn-download-xlsx" href="/export/signals.xlsx" download="nse_fno_signals.xlsx">⬇ Export Excel</a>
   </div>
 
   <!-- ── Signals section ── -->
