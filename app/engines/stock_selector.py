@@ -18,14 +18,13 @@ from app.engines.market_regime import Bias, MarketRegime
 _liquidity_cache: dict[str, tuple[bool, float]] = {}  # symbol -> (is_liquid, ts)
 _LIQUIDITY_TTL = 1800
 
-# NSE indices screened for options — ordered by liquidity / priority.
-# SENSEX (BSE) requires BFO exchange handling and is not yet supported.
+# NSE indices with F&O on NSE — screened for option signals.
+# SENSEX is shown in the display panel but has BFO options (not NFO) so excluded here.
 _NSE_INDEX_CONFIGS: list[tuple[str, str]] = [
     # (option_chain_name,  nse_tradingsymbol)
     ("NIFTY",     "NIFTY 50"),
     ("BANKNIFTY", "NIFTY BANK"),
     ("FINNIFTY",  "NIFTY FIN SERVICE"),
-    ("MIDCPNIFTY","NIFTY MIDCAP SELECT"),
 ]
 
 
@@ -44,6 +43,7 @@ class StockCandidate:
     volume_ratio: float      # today's volume / 20-day avg volume
     option_liquidity: bool   # meets min OI + spread requirements
     reason: str
+    is_index: bool = False   # True for index candidates (NIFTY, BANKNIFTY, FINNIFTY)
 
 
 def _relative_strength(stock_returns: pd.Series, nifty_returns: pd.Series) -> float:
@@ -151,6 +151,7 @@ def _build_index_candidates(
             volume_ratio=vol_ratio,
             option_liquidity=True,   # index options are always liquid
             reason=reason,
+            is_index=True,
         ))
 
     return candidates

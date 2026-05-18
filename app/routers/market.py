@@ -155,8 +155,17 @@ async def get_index_signals():
         idx_tokens = {}
         nifty_ret = pd.Series(dtype=float)
 
+    # Display order: NIFTY, SENSEX, BANKNIFTY, FINNIFTY
+    # SENSEX is BSE (no NSE F&O) — display bias only, no option direction.
+    _DISPLAY_CONFIGS = [
+        ("NIFTY",     "NIFTY 50",          False),
+        ("SENSEX",    "BSE SENSEX",         True),   # is_bse=True
+        ("BANKNIFTY", "NIFTY BANK",         False),
+        ("FINNIFTY",  "NIFTY FIN SERVICE",  False),
+    ]
+
     results = []
-    for sym, nse_sym in _NSE_INDEX_CONFIGS:
+    for sym, nse_sym, is_bse in _DISPLAY_CONFIGS:
         ltp = 0.0
         try:
             ltp = kite_client.get_ltp([sym]).get(sym, 0.0)
@@ -164,17 +173,17 @@ async def get_index_signals():
             pass
 
         pcr = None
-        try:
-            chain = kite_client.get_option_chain(sym)
-            if not chain.empty:
-                ce_oi = chain[chain["type"] == "CE"]["oi"].sum()
-                pe_oi = chain[chain["type"] == "PE"]["oi"].sum()
-                if ce_oi > 0:
-                    pcr = round(pe_oi / ce_oi, 2)
-        except Exception:
-            pass
+        if not is_bse:
+            try:
+                chain = kite_client.get_option_chain(sym)
+                if not chain.empty:
+                    ce_oi = chain[chain["type"] == "CE"]["oi"].sum()
+                    pe_oi = chain[chain["type"] == "PE"]["oi"].sum()
+                    if ce_oi > 0:
+                        pcr = round(pe_oi / ce_oi, 2)
+            except Exception:
+                pass
 
-        # NIFTY and BANKNIFTY: use regime bias (same source as Market Regime card)
         if sym == "NIFTY":
             b = regime.nifty_bias
             bias = b.value
@@ -185,8 +194,25 @@ async def get_index_signals():
             bias = b.value
             rs = 0.02 if b == Bias.BULLISH else (-0.02 if b == Bias.BEARISH else 0.0)
             reason = f"Nifty Bank — regime {bias.lower()}"
+        elif sym == "SENSEX":
+            # SENSEX: RS vs Nifty daily; display only (no NSE F&O option direction)
+            bias, rs = "NEUTRAL", 0.0
+            reason = "BSE Sensex — display only"
+            try:
+                # BSE Sensex token is 265
+                df = kite_client.get_ohlcv(265, interval="day")
+                if df is not None and len(df) >= 21 and not nifty_ret.empty:
+                    rs = _relative_strength(df["close"].pct_change().dropna().tail(20), nifty_ret)
+                    if rs > 0.005:
+                        bias, reason = "BULLISH", f"Sensex RS={rs:+.2%} — outperforming Nifty"
+                    elif rs < -0.005:
+                        bias, reason = "BEARISH", f"Sensex RS={rs:+.2%} — underperforming Nifty"
+                    else:
+                        reason = f"Sensex RS={rs:+.2%} — in line with Nifty"
+            except Exception:
+                pass
         else:
-            # FINNIFTY / MIDCPNIFTY: compute RS vs Nifty daily (lower 0.5% threshold)
+            # FINNIFTY: RS vs Nifty daily
             bias, rs = "NEUTRAL", 0.0
             reason = f"{nse_sym} — neutral RS"
             try:
@@ -204,7 +230,8 @@ async def get_index_signals():
             except Exception:
                 pass
 
-        direction = "CALL" if bias == "BULLISH" else ("PUT" if bias == "BEARISH" else None)
+        # SENSEX has no NSE F&O — suppress option direction
+        direction = None if is_bse else ("CALL" if bias == "BULLISH" else ("PUT" if bias == "BEARISH" else None))
         results.append({
             "symbol": sym,
             "full_name": nse_sym,

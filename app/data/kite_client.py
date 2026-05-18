@@ -24,6 +24,7 @@ _INDEX_LTP_KEYS: dict[str, str] = {
     "BANKNIFTY":  "NSE:NIFTY BANK",
     "FINNIFTY":   "NSE:NIFTY FIN SERVICE",
     "MIDCPNIFTY": "NSE:NIFTY MIDCAP SELECT",
+    "SENSEX":     "BSE:SENSEX",
 }
 
 # Maps our option-chain symbol names to the NSE tradingsymbol used in

@@ -254,9 +254,12 @@ def evaluate_signal(
     deriv: DerivativesSignal,
     option: Optional[OptionTarget],
     rs_score: float = 0.0,
+    force_regime_ok: bool = False,
 ) -> Optional[Signal]:
     """
     Returns a Signal if confluence gates pass, else None.
+    force_regime_ok: set True for index candidates whose regime alignment is
+    already confirmed at candidacy level (nifty_bias / banknifty_bias).
     """
     if direction == Direction.CALL:
         gates = _score_call_gates(regime, tech, deriv, rs_score)
@@ -264,6 +267,9 @@ def evaluate_signal(
     else:
         gates = _score_put_gates(regime, tech, deriv, rs_score)
         gate_defs = _PUT_GATES
+
+    if force_regime_ok:
+        gates["regime_supportive"] = True
 
     score = _weighted_score(gates, gate_defs)
     confidence = _grade_confidence(score, gates)

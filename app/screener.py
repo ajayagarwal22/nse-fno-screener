@@ -90,7 +90,10 @@ async def run_scan(trade_type: TradeType = TradeType.INTRADAY) -> list[Signal]:
                 if direction == Direction.CALL
                 else score_bearish_confluence(df_5min, df_mtf=df_15min, df_htf=df_daily)
             )
-            if tech.score < 45:
+            # Index candidates use a lower Layer 3 threshold — their regime alignment
+            # is already confirmed at candidacy level (nifty_bias / banknifty_bias).
+            layer3_min = 30 if candidate.is_index else 45
+            if tech.score < layer3_min:
                 logger.debug(
                     f"[Layer 3] {symbol} score={tech.score:.0f} "
                     f"div={tech.rsi_divergence} htf={tech.htf_trend} — skip"
@@ -98,11 +101,13 @@ async def run_scan(trade_type: TradeType = TradeType.INTRADAY) -> list[Signal]:
                 continue
 
             # Block counter-trend setups without divergence (most common fake signal)
-            if direction == Direction.CALL and tech.htf_trend == "BEARISH" and not tech.rsi_divergence:
-                logger.debug(f"[Layer 3] {symbol} CALL vs BEARISH daily — no divergence — skip")
-                continue
-            if direction == Direction.PUT and tech.htf_trend == "BULLISH" and not tech.rsi_divergence:
-                logger.debug(f"[Layer 3] {symbol} PUT vs BULLISH daily — no divergence — skip")
+            # Index candidates are exempt — their direction is set by regime bias directly.
+            if not candidate.is_index:
+                if direction == Direction.CALL and tech.htf_trend == "BEARISH" and not tech.rsi_divergence:
+                    logger.debug(f"[Layer 3] {symbol} CALL vs BEARISH daily — no divergence — skip")
+                    continue
+                if direction == Direction.PUT and tech.htf_trend == "BULLISH" and not tech.rsi_divergence:
+                    logger.debug(f"[Layer 3] {symbol} PUT vs BULLISH daily — no divergence — skip")
 
             # --- Layer 4: Derivatives intelligence ---
             ltp_map = kite_client.get_ltp([symbol])
@@ -127,6 +132,7 @@ async def run_scan(trade_type: TradeType = TradeType.INTRADAY) -> list[Signal]:
                 deriv=deriv,
                 option=option,
                 rs_score=candidate.rs_score,
+                force_regime_ok=candidate.is_index,
             )
 
             if signal:
