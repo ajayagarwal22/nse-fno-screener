@@ -177,6 +177,7 @@ _S1_COLS = [
     ("OI Interp.",                       14),
     ("HTF Trend",                        11),
     ("Divergence",                       11),
+    ("Candle Pattern\n(15-min)",         18),
     # ── Entry/exit levels ──
     ("Entry Spot",                       11),
     ("Stop Loss\n(spot)",                12),
@@ -313,6 +314,12 @@ def _build_sheet1(wb, signals, trades_by_sid):
         div_fg  = _FG_GREEN if sig.get("divergence") else _FG_MUTED
         c = ws.cell(row=r_idx, column=col, value=div_val)
         c.font = _font(colour=div_fg); c.fill = _fill(bg); c.alignment = _align("center"); c.border = _border(); col += 1
+
+        pattern = sig.get("candle_pattern") or ""
+        pat_fg  = _FG_AMBER if pattern else _FG_MUTED
+        c = ws.cell(row=r_idx, column=col, value=pattern if pattern else "—")
+        c.font = _font(bold=bool(pattern), colour=pat_fg); c.fill = _fill(bg)
+        c.alignment = _align("center"); c.border = _border(); col += 1
 
         # ── Entry/exit levels ─────────────────────────────────────────────
         _cv(col, sig.get("entry_spot"), align="center"); col += 1

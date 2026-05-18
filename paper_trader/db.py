@@ -111,12 +111,14 @@ def _do_insert_signal(conn: sqlite3.Connection, data: dict) -> int:
             timestamp, symbol, direction, grade, confidence,
             entry_spot, sl_spot, vwap, target1, target2, rr,
             rsi, macd_hist, vix, pcr, oi, htf_trend, divergence,
-            active_signals, position_size, exit_time_rule, notes
+            active_signals, position_size, exit_time_rule, notes,
+            candle_pattern
         ) VALUES (
             :timestamp, :symbol, :direction, :grade, :confidence,
             :entry_spot, :sl_spot, :vwap, :target1, :target2, :rr,
             :rsi, :macd_hist, :vix, :pcr, :oi, :htf_trend, :divergence,
-            :active_signals, :position_size, :exit_time_rule, :notes
+            :active_signals, :position_size, :exit_time_rule, :notes,
+            :candle_pattern
         )
     """, data)
     return cur.lastrowid

@@ -62,6 +62,7 @@ def _serialize(s) -> dict:
         "pcr_value": float(s.pcr_value),
         "divergence_detected": s.divergence_detected,
         "divergence_strength": s.divergence_strength,
+        "candle_pattern": s.candle_pattern,
         "htf_trend": s.htf_trend,
         "option": {
             "strike": s.option.strike,

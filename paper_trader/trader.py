@@ -132,6 +132,7 @@ def _extract(signal) -> dict:
         "position_size":   g("position_sizing", ""),
         "exit_time_rule":  exit_time_rule,
         "notes":           None,
+        "candle_pattern":  g("candle_pattern", "") or "",
     }
 
 

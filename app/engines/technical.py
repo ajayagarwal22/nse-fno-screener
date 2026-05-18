@@ -43,6 +43,9 @@ class ConfluenceResult:
     volume_expansion: bool
     candle_confirm: bool
 
+    # Candlestick pattern (detected on 15-min)
+    candle_pattern: str                 # pattern name, or "" if none
+
     # Misc indicators (kept for display)
     rsi: float                          # LTF RSI (current)
     atr: float
@@ -282,6 +285,154 @@ def _supertrend_bullish(df: pd.DataFrame, period: int = 10, mult: float = 3.0) -
     return bullish
 
 
+def _bull_engulfing(o, h, l, c) -> bool:
+    if len(o) < 2: return False
+    body1 = abs(o[-2] - c[-2])
+    return (c[-2] < o[-2] and c[-1] > o[-1]
+            and o[-1] <= c[-2] and c[-1] >= o[-2]
+            and (c[-1] - o[-1]) > body1 and body1 > 0)
+
+
+def _bear_engulfing(o, h, l, c) -> bool:
+    if len(o) < 2: return False
+    body1 = abs(c[-2] - o[-2])
+    return (c[-2] > o[-2] and c[-1] < o[-1]
+            and o[-1] >= c[-2] and c[-1] <= o[-2]
+            and (o[-1] - c[-1]) > body1 and body1 > 0)
+
+
+def _hammer(o, h, l, c) -> bool:
+    body = abs(c[-1] - o[-1])
+    rng  = h[-1] - l[-1]
+    if rng == 0 or body / rng > 0.35: return False
+    lower_wick = min(o[-1], c[-1]) - l[-1]
+    upper_wick = h[-1] - max(o[-1], c[-1])
+    return lower_wick >= 2 * body and upper_wick <= 0.3 * max(body, 1e-9)
+
+
+def _shooting_star(o, h, l, c) -> bool:
+    body = abs(c[-1] - o[-1])
+    rng  = h[-1] - l[-1]
+    if rng == 0 or body / rng > 0.35: return False
+    upper_wick = h[-1] - max(o[-1], c[-1])
+    lower_wick = min(o[-1], c[-1]) - l[-1]
+    return upper_wick >= 2 * body and lower_wick <= 0.3 * max(body, 1e-9)
+
+
+def _morning_star(o, h, l, c) -> bool:
+    if len(o) < 3: return False
+    rng1  = h[-3] - l[-3]
+    body1 = abs(o[-3] - c[-3])
+    rng2  = h[-2] - l[-2]
+    body2 = abs(o[-2] - c[-2])
+    mid1  = (o[-3] + c[-3]) / 2
+    return (c[-3] < o[-3] and rng1 > 0 and body1 / rng1 > 0.5
+            and rng2 > 0 and body2 / rng2 < 0.4
+            and c[-1] > o[-1] and c[-1] > mid1)
+
+
+def _evening_star(o, h, l, c) -> bool:
+    if len(o) < 3: return False
+    rng1  = h[-3] - l[-3]
+    body1 = abs(c[-3] - o[-3])
+    rng2  = h[-2] - l[-2]
+    body2 = abs(o[-2] - c[-2])
+    mid1  = (o[-3] + c[-3]) / 2
+    return (c[-3] > o[-3] and rng1 > 0 and body1 / rng1 > 0.5
+            and rng2 > 0 and body2 / rng2 < 0.4
+            and c[-1] < o[-1] and c[-1] < mid1)
+
+
+def _piercing_line(o, h, l, c) -> bool:
+    if len(o) < 2: return False
+    mid_prev = (o[-2] + c[-2]) / 2
+    return (c[-2] < o[-2] and c[-1] > o[-1]
+            and o[-1] < c[-2] and mid_prev < c[-1] < o[-2])
+
+
+def _dark_cloud(o, h, l, c) -> bool:
+    if len(o) < 2: return False
+    mid_prev = (o[-2] + c[-2]) / 2
+    return (c[-2] > o[-2] and c[-1] < o[-1]
+            and o[-1] > c[-2] and o[-2] < c[-1] < mid_prev)
+
+
+def _bull_harami(o, h, l, c) -> bool:
+    if len(o) < 2: return False
+    return (c[-2] < o[-2] and c[-1] > o[-1]
+            and o[-1] > c[-2] and c[-1] < o[-2])
+
+
+def _bear_harami(o, h, l, c) -> bool:
+    if len(o) < 2: return False
+    return (c[-2] > o[-2] and c[-1] < o[-1]
+            and o[-1] < c[-2] and c[-1] > o[-2])
+
+
+def detect_candle_pattern(df_mtf: Optional[pd.DataFrame], direction: str) -> tuple[bool, str]:
+    """Detect high-conviction candlestick patterns on MTF (15-min).
+
+    Uses TA-Lib when available; falls back to pure-Python implementations.
+    Only checks a curated set of patterns with meaningful statistical backing.
+    Returns (found, pattern_name).
+    """
+    if df_mtf is None or len(df_mtf) < 3:
+        return False, ""
+
+    o = df_mtf["open"].values.astype(float)
+    h = df_mtf["high"].values.astype(float)
+    l = df_mtf["low"].values.astype(float)
+    c = df_mtf["close"].values.astype(float)
+
+    if _TALIB:
+        if direction == "BULLISH":
+            checks = [
+                ("Bullish Engulfing",  talib.CDLENGULFING(o, h, l, c)[-1] > 0),
+                ("Hammer",             talib.CDLHAMMER(o, h, l, c)[-1] > 0),
+                ("Inverted Hammer",    talib.CDLINVERTEDHAMMER(o, h, l, c)[-1] > 0),
+                ("Morning Star",       talib.CDLMORNINGSTAR(o, h, l, c)[-1] > 0),
+                ("Piercing Line",      talib.CDLPIERCING(o, h, l, c)[-1] > 0),
+                ("Bullish Harami",     talib.CDLHARAMI(o, h, l, c)[-1] > 0),
+                ("Dragonfly Doji",     talib.CDLDRAGONFLYDOJI(o, h, l, c)[-1] > 0),
+            ]
+        else:
+            checks = [
+                ("Bearish Engulfing",  talib.CDLENGULFING(o, h, l, c)[-1] < 0),
+                ("Shooting Star",      talib.CDLSHOOTINGSTAR(o, h, l, c)[-1] < 0),
+                ("Hanging Man",        talib.CDLHANGINGMAN(o, h, l, c)[-1] < 0),
+                ("Evening Star",       talib.CDLEVENINGSTAR(o, h, l, c)[-1] < 0),
+                ("Dark Cloud Cover",   talib.CDLDARKCLOUDCOVER(o, h, l, c)[-1] < 0),
+                ("Bearish Harami",     talib.CDLHARAMI(o, h, l, c)[-1] < 0),
+                ("Gravestone Doji",    talib.CDLGRAVESTONEDOJI(o, h, l, c)[-1] < 0),
+            ]
+        for name, found in checks:
+            if found:
+                return True, name
+        return False, ""
+
+    # Pure-Python fallback
+    if direction == "BULLISH":
+        checks = [
+            ("Bullish Engulfing", _bull_engulfing(o, h, l, c)),
+            ("Hammer",            _hammer(o, h, l, c)),
+            ("Morning Star",      _morning_star(o, h, l, c)),
+            ("Piercing Line",     _piercing_line(o, h, l, c)),
+            ("Bullish Harami",    _bull_harami(o, h, l, c)),
+        ]
+    else:
+        checks = [
+            ("Bearish Engulfing", _bear_engulfing(o, h, l, c)),
+            ("Shooting Star",     _shooting_star(o, h, l, c)),
+            ("Evening Star",      _evening_star(o, h, l, c)),
+            ("Dark Cloud Cover",  _dark_cloud(o, h, l, c)),
+            ("Bearish Harami",    _bear_harami(o, h, l, c)),
+        ]
+    for name, found in checks:
+        if found:
+            return True, name
+    return False, ""
+
+
 def score_ltf_confirmation(df: pd.DataFrame) -> dict:
     """LTF (5-min) entry confirmation indicators."""
     if df is None or len(df) < 26:
@@ -371,6 +522,9 @@ def score_bullish_confluence(
         if df_mtf is not None else (False, 0.0)
     )
 
+    # MTF candlestick pattern (15-min) — bonus confirmation gate
+    pattern_found, pattern_name = detect_candle_pattern(df_mtf, "BULLISH")
+
     # LTF confirmation
     ltf = score_ltf_confirmation(df_ltf) if df_ltf is not None else {}
 
@@ -380,7 +534,7 @@ def score_bullish_confluence(
         "macd_bull_cross":    ltf.get("macd_bull_cross", False),
         "above_vwap":         ltf.get("above_vwap", False),
         "volume_expansion":   ltf.get("vol_expansion", False),
-        "candle_confirm":     ltf.get("bull_candle", False),
+        "candle_confirm":     pattern_found,
     }
 
     weights = {
@@ -389,7 +543,7 @@ def score_bullish_confluence(
         "macd_bull_cross":   20,
         "above_vwap":        15,
         "volume_expansion":  10,
-        "candle_confirm":     5,
+        "candle_confirm":     5,    # MTF pattern bonus
     }
 
     raw_score = sum(weights[k] for k, v in gates.items() if v)
@@ -400,9 +554,10 @@ def score_bullish_confluence(
         htf_trend=htf_trend, htf_ema_aligned=htf_ema,
         rsi_divergence=bull_div, divergence_type="BULLISH" if bull_div else "NONE",
         divergence_strength=div_strength,
+        candle_pattern=pattern_name,
         vwap=ltf.get("vwap", 0.0), above_vwap=ltf.get("above_vwap", False),
         macd_hist=ltf.get("macd_hist", 0.0), macd_cross=ltf.get("macd_bull_cross", False),
-        volume_expansion=ltf.get("vol_expansion", False), candle_confirm=ltf.get("bull_candle", False),
+        volume_expansion=ltf.get("vol_expansion", False), candle_confirm=pattern_found,
         rsi=ltf.get("rsi", 50.0), atr=ltf.get("atr", 0.0),
         ema20=ltf.get("ema20", 0.0), ema50=ltf.get("ema50", 0.0), ema200=ltf.get("ema200", 0.0),
         supertrend_bullish=ltf.get("supertrend_bull", False),
@@ -428,6 +583,9 @@ def score_bearish_confluence(
         if df_mtf is not None else (False, 0.0)
     )
 
+    # MTF candlestick pattern (15-min) — bonus confirmation gate
+    pattern_found, pattern_name = detect_candle_pattern(df_mtf, "BEARISH")
+
     ltf = score_ltf_confirmation(df_ltf) if df_ltf is not None else {}
 
     gates = {
@@ -436,7 +594,7 @@ def score_bearish_confluence(
         "macd_bear_cross":    ltf.get("macd_bear_cross", False),
         "below_vwap":         not ltf.get("above_vwap", True),
         "volume_expansion":   ltf.get("vol_expansion", False),
-        "candle_confirm":     ltf.get("bear_candle", False),
+        "candle_confirm":     pattern_found,
     }
 
     weights = {
@@ -445,7 +603,7 @@ def score_bearish_confluence(
         "macd_bear_cross":   20,
         "below_vwap":        15,
         "volume_expansion":  10,
-        "candle_confirm":     5,
+        "candle_confirm":     5,    # MTF pattern bonus
     }
 
     raw_score = sum(weights[k] for k, v in gates.items() if v)
@@ -456,9 +614,10 @@ def score_bearish_confluence(
         htf_trend=htf_trend, htf_ema_aligned=htf_ema,
         rsi_divergence=bear_div, divergence_type="BEARISH" if bear_div else "NONE",
         divergence_strength=div_strength,
+        candle_pattern=pattern_name,
         vwap=ltf.get("vwap", 0.0), above_vwap=ltf.get("above_vwap", True),
         macd_hist=ltf.get("macd_hist", 0.0), macd_cross=ltf.get("macd_bear_cross", False),
-        volume_expansion=ltf.get("vol_expansion", False), candle_confirm=ltf.get("bear_candle", False),
+        volume_expansion=ltf.get("vol_expansion", False), candle_confirm=pattern_found,
         rsi=ltf.get("rsi", 50.0), atr=ltf.get("atr", 0.0),
         ema20=ltf.get("ema20", 0.0), ema50=ltf.get("ema50", 0.0), ema200=ltf.get("ema200", 0.0),
         supertrend_bullish=ltf.get("supertrend_bull", False),
@@ -470,6 +629,7 @@ def _empty_result(direction: str) -> ConfluenceResult:
         score=0.0, direction=direction, breakdown={},
         htf_trend="NEUTRAL", htf_ema_aligned=False,
         rsi_divergence=False, divergence_type="NONE", divergence_strength=0.0,
+        candle_pattern="",
         vwap=0.0, above_vwap=False, macd_hist=0.0, macd_cross=False,
         volume_expansion=False, candle_confirm=False,
         rsi=50.0, atr=0.0, ema20=0.0, ema50=0.0, ema200=0.0, supertrend_bullish=False,

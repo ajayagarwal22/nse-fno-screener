@@ -96,6 +96,9 @@ class Signal:
     divergence_strength: float = 0.0
     htf_trend: str = "NEUTRAL"
 
+    # Candlestick pattern detected on 15-min (empty string = none)
+    candle_pattern: str = ""
+
     def to_alert_text(self) -> str:
         opt_line = ""
         if self.option:
@@ -207,6 +210,8 @@ def _build_reasons(
             reasons.append(f"MACD histogram flipped bullish ({tech.macd_hist:+.2f})")
         if tech.volume_expansion:
             reasons.append("Volume expansion confirmed on 5-min")
+        if tech.candle_pattern:
+            reasons.append(f"Pattern: {tech.candle_pattern} on 15-min (+5 pts)")
         reasons.append(f"OI: {deriv.oi_interpretation.value}")
         reasons.append(f"PCR {deriv.pcr:.2f} ({deriv.pcr_signal.value})")
         reasons.append(f"VIX {regime.vix_data.value:.1f} ({regime.vix_data.signal})")
@@ -217,6 +222,8 @@ def _build_reasons(
             reasons.append(f"MACD histogram flipped bearish ({tech.macd_hist:+.2f})")
         if tech.volume_expansion:
             reasons.append("Volume expansion confirmed on 5-min")
+        if tech.candle_pattern:
+            reasons.append(f"Pattern: {tech.candle_pattern} on 15-min (+5 pts)")
         reasons.append(f"OI: {deriv.oi_interpretation.value}")
         reasons.append(f"Heavy CE writing at {deriv.strong_call_wall:.0f}")
         reasons.append(f"PCR {deriv.pcr:.2f} ({deriv.pcr_signal.value})")
@@ -323,4 +330,5 @@ def evaluate_signal(
         divergence_detected=tech.rsi_divergence,
         divergence_strength=tech.divergence_strength,
         htf_trend=tech.htf_trend,
+        candle_pattern=tech.candle_pattern,
     )

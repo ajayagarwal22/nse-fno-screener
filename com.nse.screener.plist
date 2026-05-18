@@ -7,23 +7,12 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Library/Frameworks/Python.framework/Versions/3.13/bin/python3</string>
-        <string>-m</string>
-        <string>uvicorn</string>
-        <string>app.main:app</string>
-        <string>--host</string>
-        <string>0.0.0.0</string>
-        <string>--port</string>
-        <string>9000</string>
+        <string>/bin/bash</string>
+        <string>/Users/ajayagarwal/Library/Scripts/nse-screener.sh</string>
     </array>
-
-    <key>WorkingDirectory</key>
-    <string>/Users/ajayagarwal/Desktop/Stocks project/nse-fno-screener</string>
 
     <key>EnvironmentVariables</key>
     <dict>
-        <key>PYTHONPYCACHEPREFIX</key>
-        <string>/tmp/nse-fno-pycache</string>
         <key>HOME</key>
         <string>/Users/ajayagarwal</string>
     </dict>

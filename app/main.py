@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from kiteconnect.exceptions import TokenException
 
 from app.config import settings
@@ -60,6 +60,26 @@ ws_manager = ConnectionManager()
 # ---------------------------------------------------------------------------
 # Lifespan
 # ---------------------------------------------------------------------------
+
+# Read at module import time (synchronous, main thread).
+# DASHBOARD_HTML_PATH points to a /tmp copy staged by run-screener.sh,
+# avoiding iCloud Drive EDEADLK when launchd starts at login.
+def _load_dashboard_html() -> str:
+    import time as _time
+    path = (
+        os.environ.get("DASHBOARD_HTML_PATH")
+        or os.path.join(os.path.dirname(__file__), "dashboard.html")
+    )
+    for _ in range(30):
+        try:
+            with open(path, encoding="utf-8") as f:
+                return f.read()
+        except OSError:
+            _time.sleep(2)
+    raise RuntimeError(f"Cannot read dashboard HTML from {path}")
+
+_dashboard_html: str = _load_dashboard_html()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -133,8 +153,7 @@ async def dashboard():
     """Serve the visual dashboard, redirecting to Kite login if token is expired."""
     if not await token_is_valid():
         return RedirectResponse(url="/auth/login")
-    html_path = os.path.join(os.path.dirname(__file__), "dashboard.html")
-    return FileResponse(html_path, media_type="text/html")
+    return HTMLResponse(content=_dashboard_html)
 
 
 @app.get("/api", tags=["root"])
