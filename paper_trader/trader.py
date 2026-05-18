@@ -162,6 +162,7 @@ class PaperTrader:
         )
         self._worker.start()
 
+        self._restore_active_trades()
         self._start_ticker()
         logger.info("[PaperTrader] Initialised and ready")
 
@@ -277,11 +278,57 @@ class PaperTrader:
         self._monitor.add_trade(active)
         self._subscribe({spot_token, option_token})
 
+        # Seed LTP cache immediately so current_spot/current_premium show before first tick
+        opt_ltp = self._get_option_ltp(option_token) or 0.0
+        self._monitor.seed_prices({spot_token: spot, option_token: opt_ltp})
+
         logger.info(
             f"[PaperTrader] trade#{trade_id} WATCHING "
             f"{symbol} {strike}{option_type} exp={expiry} "
             f"zone={zone:.2f} spot={spot:.2f} lot={lot_size}"
         )
+
+    def _restore_active_trades(self):
+        """Re-register WATCHING/ACTIVE trades from DB into the monitor after restart."""
+        try:
+            rows = db.get_active_trades()
+        except Exception as exc:
+            logger.error(f"[PaperTrader] Could not restore active trades: {exc}")
+            return
+        if not rows:
+            return
+        tokens_to_subscribe: set[int] = set()
+        for row in rows:
+            spot_token   = row.get("spot_token")
+            option_token = row.get("instrument_token")
+            if not spot_token or not option_token:
+                continue
+            active = ActiveTrade(
+                trade_id=row["id"],
+                signal_id=row.get("signal_id", 0),
+                symbol=row["symbol"],
+                direction=row["direction"],
+                strike=row.get("strike", 0),
+                expiry=row.get("expiry", ""),
+                option_type=row.get("option_type", ""),
+                spot_token=spot_token,
+                option_token=option_token,
+                entry_premium=row.get("entry_premium") or 0.0,
+                entry_spot=row.get("entry_spot") or 0.0,
+                sl_spot=row.get("sl_spot") or 0.0,
+                target1=row.get("target1") or 0.0,
+                target2=row.get("target2") or 0.0,
+                exit_time_rule=row.get("exit_time_rule"),
+                status=row.get("status", "WATCHING"),
+                lot_size=row.get("lots", 1),
+            )
+            self._monitor.add_trade(active)
+            tokens_to_subscribe.add(spot_token)
+            tokens_to_subscribe.add(option_token)
+        if tokens_to_subscribe:
+            with self._ticker_lock:
+                self._subscribed_tokens |= tokens_to_subscribe
+        logger.info(f"[PaperTrader] Restored {len(rows)} active trade(s) from DB")
 
     def _skip_trade(self, signal_id: int, symbol: str, direction: str, reason: str):
         logger.warning(f"[PaperTrader] SKIPPED {symbol} {direction} — {reason}")
@@ -351,6 +398,17 @@ class PaperTrader:
         if tokens:
             ws.subscribe(tokens)
             ws.set_mode(ws.MODE_LTP, tokens)
+            # Seed LTP cache via REST so prices show before the first WS tick arrives
+            try:
+                ltp_data = self._kite.ltp(tokens)
+                prices = {
+                    int(str(k)): float(v.get("last_price", 0) or 0)
+                    for k, v in ltp_data.items()
+                }
+                self._monitor.seed_prices(prices)
+                logger.info(f"[PaperTrader] Seeded LTP for {len(prices)} tokens on connect")
+            except Exception as exc:
+                logger.warning(f"[PaperTrader] LTP seed on connect failed: {exc}")
 
     def _on_close(self, ws, code, reason):
         logger.warning(f"[PaperTrader] WebSocket closed: {code} {reason}")

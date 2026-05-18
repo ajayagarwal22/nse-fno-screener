@@ -89,6 +89,13 @@ class MonitorThread:
         with self._lock:
             return bool(self._trades)
 
+    def seed_prices(self, prices: dict[int, float]) -> None:
+        """Pre-populate LTP cache (called at trade creation and on ticker reconnect)."""
+        with self._lock:
+            for token, price in prices.items():
+                if price:
+                    self._ltp[token] = float(price)
+
     def get_live_prices(self) -> dict[int, dict]:
         """Return {trade_id: {current_spot, current_premium, status}} for all monitored trades."""
         with self._lock:

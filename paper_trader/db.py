@@ -197,14 +197,17 @@ def set_trade_status(trade_id: int, status: str):
 
 def get_active_trades() -> list:
     """
-    Read all WATCHING/ACTIVE trades. Uses its own read connection
-    (separate from write thread) — safe under WAL.
+    Read all WATCHING/ACTIVE trades joined with their signal's risk levels.
+    Uses its own read connection (separate from write thread) — safe under WAL.
     """
     conn = _connect()
     try:
-        cur = conn.execute(
-            "SELECT * FROM trades WHERE status IN ('WATCHING','ACTIVE')"
-        )
+        cur = conn.execute("""
+            SELECT t.*, s.sl_spot, s.target1, s.target2, s.exit_time_rule
+            FROM trades t
+            LEFT JOIN signals s ON t.signal_id = s.id
+            WHERE t.status IN ('WATCHING', 'ACTIVE')
+        """)
         return [dict(row) for row in cur.fetchall()]
     finally:
         conn.close()
