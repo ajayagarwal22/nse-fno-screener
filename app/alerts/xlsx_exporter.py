@@ -591,16 +591,27 @@ def _build_sheet4(wb, signals, trades_by_sid):
         c2.font = _font(bold=bold_val, colour=val_fg); c2.fill = _fill(_BG_EVEN); c2.alignment = _align("center"); c2.border = _border()
         _row_idx += 1
 
-    ws.column_dimensions["A"].width = 28
-    ws.column_dimensions["B"].width = 18
+    ws.column_dimensions["A"].width = 18
+    ws.column_dimensions["B"].width = 22
+    ws.column_dimensions["C"].width = 18
+    ws.column_dimensions["D"].width = 16
+
+    def _invested(t):
+        try:
+            return float(t["entry_premium"]) * float(t["lots"]) \
+                if t.get("entry_premium") is not None and t.get("lots") is not None else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+
+    total_invested = sum(_invested(t) for t in all_trades)
 
     _row_idx = 1
 
-    # section header
-    c = ws.cell(row=_row_idx, column=1, value="Overall Performance")
-    c.font = _font(bold=True, size=12, colour=_FG_PURPLE); c.fill = _fill(_BG_HEADER)
-    c2 = ws.cell(row=_row_idx, column=2, value="")
-    c2.fill = _fill(_BG_HEADER)
+    # ── Overall Performance ───────────────────────────────────────────────────
+    for col in range(1, 5):
+        c = ws.cell(row=_row_idx, column=col, value="Overall Performance" if col == 1 else "")
+        c.font = _font(bold=True, size=12, colour=_FG_PURPLE)
+        c.fill = _fill(_BG_HEADER); c.border = _border()
     _row_idx += 1
 
     _row("Total Signals (DB)",     len(signals))
@@ -613,7 +624,12 @@ def _build_sheet4(wb, signals, trades_by_sid):
     _row("Win Rate",               f"{win_rate:.1f}%", val_fg=_FG_GREEN if win_rate >= 50 else _FG_RED, bold_val=True)
 
     total_fg = _FG_GREEN if total_pnl >= 0 else _FG_RED
-    _row("Total P&L (₹)",         f"₹ {total_pnl:,.0f}", val_fg=total_fg, bold_val=True)
+    _row("Total Invested (₹)",     f"₹ {total_invested:,.0f}", val_fg=_FG_AMBER, bold_val=True)
+    _row("Total P&L (₹)",          f"₹ {total_pnl:,.0f}", val_fg=total_fg, bold_val=True)
+    if total_invested > 0:
+        overall_ret = total_pnl / total_invested * 100
+        ret_fg = _FG_GREEN if overall_ret >= 0 else _FG_RED
+        _row("Overall Return %",   f"{overall_ret:+.2f}%", val_fg=ret_fg, bold_val=True)
 
     if wins:
         avg_win = sum(float(t.get("pnl_rupees") or 0) for t in wins) / len(wins)
@@ -622,12 +638,12 @@ def _build_sheet4(wb, signals, trades_by_sid):
         avg_loss = sum(float(t.get("pnl_rupees") or 0) for t in losses) / len(losses)
         _row("Avg Loss (₹)",       f"₹ {avg_loss:,.0f}", val_fg=_FG_RED)
 
-    # By exit reason
+    # ── By Exit Reason ────────────────────────────────────────────────────────
     _row_idx += 1
-    c = ws.cell(row=_row_idx, column=1, value="By Exit Reason")
-    c.font = _font(bold=True, size=12, colour=_FG_PURPLE); c.fill = _fill(_BG_HEADER)
-    c2 = ws.cell(row=_row_idx, column=2, value="")
-    c2.fill = _fill(_BG_HEADER)
+    for col in range(1, 5):
+        c = ws.cell(row=_row_idx, column=col, value="By Exit Reason" if col == 1 else "")
+        c.font = _font(bold=True, size=12, colour=_FG_PURPLE)
+        c.fill = _fill(_BG_HEADER); c.border = _border()
     _row_idx += 1
 
     for reason in ["T2", "T1", "SL", "TIME"]:
@@ -636,12 +652,12 @@ def _build_sheet4(wb, signals, trades_by_sid):
         reason_fg = {"T2": _FG_GREEN, "T1": _FG_AMBER, "SL": _FG_RED, "TIME": _FG_MUTED}.get(reason, _FG_WHITE)
         _row(f"{reason} exits", f"{len(reason_trades)} trades  |  ₹ {reason_pnl:,.0f}", val_fg=reason_fg)
 
-    # By date
+    # ── By Date ───────────────────────────────────────────────────────────────
     _row_idx += 1
-    c = ws.cell(row=_row_idx, column=1, value="By Date")
-    c.font = _font(bold=True, size=12, colour=_FG_PURPLE); c.fill = _fill(_BG_HEADER)
-    c2 = ws.cell(row=_row_idx, column=2, value="")
-    c2.fill = _fill(_BG_HEADER)
+    for col, hdr in enumerate(["Date", "Trades  |  W / L", "Invested ₹", "P&L ₹"], start=1):
+        c = ws.cell(row=_row_idx, column=col, value=hdr)
+        c.font = _font(bold=True, size=11, colour=_FG_PURPLE)
+        c.fill = _fill(_BG_HEADER); c.alignment = _align("center"); c.border = _border()
     _row_idx += 1
 
     by_date = {}
@@ -650,11 +666,51 @@ def _build_sheet4(wb, signals, trades_by_sid):
         by_date.setdefault(d, []).append(t)
 
     for d in sorted(by_date):
-        day_trades = by_date[d]
-        day_pnl    = sum(float(t.get("pnl_rupees") or 0) for t in day_trades)
-        day_wins   = sum(1 for t in day_trades if t.get("outcome") == "WIN")
-        day_fg     = _FG_GREEN if day_pnl >= 0 else _FG_RED
-        _row(d, f"{len(day_trades)} trades | {day_wins}W | ₹ {day_pnl:,.0f}", val_fg=day_fg)
+        day_trades   = by_date[d]
+        day_pnl      = sum(float(t.get("pnl_rupees") or 0) for t in day_trades)
+        day_invested = sum(_invested(t) for t in day_trades)
+        day_wins     = sum(1 for t in day_trades if t.get("outcome") == "WIN")
+        day_losses   = sum(1 for t in day_trades if t.get("outcome") == "LOSS")
+        day_pnl_fg   = _FG_GREEN if day_pnl >= 0 else _FG_RED
+        bg = _BG_EVEN if _row_idx % 2 == 0 else _BG_ODD
+
+        c1 = ws.cell(row=_row_idx, column=1, value=d)
+        c1.font = _font(bold=True, colour=_FG_WHITE); c1.fill = _fill(bg)
+        c1.alignment = _align("center"); c1.border = _border()
+
+        summary = f"{len(day_trades)} trades  |  {day_wins}W / {day_losses}L"
+        c2 = ws.cell(row=_row_idx, column=2, value=summary)
+        c2.font = _font(colour=_FG_WHITE); c2.fill = _fill(bg)
+        c2.alignment = _align("center"); c2.border = _border()
+
+        c3 = ws.cell(row=_row_idx, column=3, value=f"₹ {day_invested:,.0f}" if day_invested else "—")
+        c3.font = _font(bold=True, colour=_FG_AMBER if day_invested else _FG_MUTED)
+        c3.fill = _fill(bg); c3.alignment = _align("center"); c3.border = _border()
+
+        c4 = ws.cell(row=_row_idx, column=4, value=f"₹ {day_pnl:,.0f}")
+        c4.font = _font(bold=True, colour=day_pnl_fg)
+        c4.fill = _fill(bg); c4.alignment = _align("center"); c4.border = _border()
+
+        _row_idx += 1
+
+    # ── Date totals row ───────────────────────────────────────────────────────
+    if by_date:
+        c1 = ws.cell(row=_row_idx, column=1, value="TOTAL")
+        c1.font = _font(bold=True, colour=_FG_PURPLE); c1.fill = _fill(_BG_HEADER)
+        c1.alignment = _align("center"); c1.border = _border()
+
+        c2 = ws.cell(row=_row_idx, column=2, value=f"{len(all_trades)} trades  |  {len(wins)}W / {len(losses)}L")
+        c2.font = _font(bold=True, colour=_FG_WHITE); c2.fill = _fill(_BG_HEADER)
+        c2.alignment = _align("center"); c2.border = _border()
+
+        c3 = ws.cell(row=_row_idx, column=3, value=f"₹ {total_invested:,.0f}" if total_invested else "—")
+        c3.font = _font(bold=True, colour=_FG_AMBER); c3.fill = _fill(_BG_HEADER)
+        c3.alignment = _align("center"); c3.border = _border()
+
+        total_fg2 = _FG_GREEN if total_pnl >= 0 else _FG_RED
+        c4 = ws.cell(row=_row_idx, column=4, value=f"₹ {total_pnl:,.0f}")
+        c4.font = _font(bold=True, colour=total_fg2); c4.fill = _fill(_BG_HEADER)
+        c4.alignment = _align("center"); c4.border = _border()
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
