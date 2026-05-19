@@ -191,6 +191,7 @@ _S1_COLS = [
     ("Opt Type",                          9),
     ("Lots",                              8),
     ("Entry Prem.",                      12),
+    ("Invested Amt.\n(lots × prem)",     14),
     ("Entry Spot\n(trade)",              13),
     ("Entry Time",                       17),
     ("Exit Prem.",                       11),
@@ -349,6 +350,15 @@ def _build_sheet1(wb, signals, trades_by_sid):
             _tv(col, trade.get("option_type")); col += 1
             _tv(col, trade.get("lots")); col += 1
             _tv(col, trade.get("entry_premium")); col += 1
+            # Invested amount = lots × entry_premium
+            try:
+                invested = round(float(trade["entry_premium"]) * float(trade["lots"]), 0) \
+                    if trade.get("entry_premium") is not None and trade.get("lots") is not None else ""
+            except (TypeError, ValueError):
+                invested = ""
+            c = ws.cell(row=r_idx, column=col, value=invested if invested != "" else "—")
+            c.font = _font(bold=bool(invested), colour=_FG_AMBER if invested else _FG_MUTED)
+            c.fill = _fill(trade_bg); c.alignment = _align("center"); c.border = _border(); col += 1
             _tv(col, trade.get("entry_spot")); col += 1
             entry_t = trade.get("entry_time", "")
             try:
@@ -376,7 +386,7 @@ def _build_sheet1(wb, signals, trades_by_sid):
             c.font = _font(bold=True, colour=pnl_fg); c.fill = _fill(trade_bg)
             c.alignment = _align("center"); c.border = _border(); col += 1
         else:
-            for _ in range(15):
+            for _ in range(16):
                 c = ws.cell(row=r_idx, column=col, value="—")
                 c.font = _font(colour=_FG_MUTED); c.fill = _fill(bg)
                 c.alignment = _align("center"); c.border = _border()
@@ -471,17 +481,18 @@ _PT_COLS = [
     ("Strike",      9),
     ("Expiry",     11),
     ("Opt Type",    9),
-    ("Lots",        8),
-    ("Entry Prem.", 12),
-    ("Entry Spot",  11),
-    ("Exit Prem.",  11),
-    ("Exit Spot",   11),
-    ("Exit Time",  17),
-    ("Exit Reason", 12),
-    ("P&L Pts",     10),
-    ("P&L ₹",      11),
-    ("P&L %",        9),
-    ("Outcome",     11),
+    ("Lots",            8),
+    ("Entry Prem.",    12),
+    ("Invested Amt.\n(lots × prem)", 14),
+    ("Entry Spot",     11),
+    ("Exit Prem.",     11),
+    ("Exit Spot",      11),
+    ("Exit Time",      17),
+    ("Exit Reason",    12),
+    ("P&L Pts",        10),
+    ("P&L ₹",         11),
+    ("P&L %",           9),
+    ("Outcome",        11),
 ]
 
 
@@ -529,19 +540,28 @@ def _build_sheet3(wb, trades_by_sid):
         _tv(8, t.get("option_type"))
         _tv(9, t.get("lots"))
         _tv(10, t.get("entry_premium"))
-        _tv(11, t.get("entry_spot"))
-        _tv(12, t.get("exit_premium"))
-        _tv(13, t.get("exit_spot"))
-        _tv(14, exit_t)
-        c = ws.cell(row=r_idx, column=15, value=t.get("exit_reason",""))
+        # Invested amount = lots × entry_premium
+        try:
+            invested = round(float(t["entry_premium"]) * float(t["lots"]), 0) \
+                if t.get("entry_premium") is not None and t.get("lots") is not None else ""
+        except (TypeError, ValueError):
+            invested = ""
+        c = ws.cell(row=r_idx, column=11, value=invested if invested != "" else "—")
+        c.font = _font(bold=bool(invested), colour=_FG_AMBER if invested else _FG_MUTED)
+        c.fill = _fill(bg); c.alignment = _align("center"); c.border = _border()
+        _tv(12, t.get("entry_spot"))
+        _tv(13, t.get("exit_premium"))
+        _tv(14, t.get("exit_spot"))
+        _tv(15, exit_t)
+        c = ws.cell(row=r_idx, column=16, value=t.get("exit_reason",""))
         c.font = _font(bold=True, colour=exit_reason_fg); c.fill = _fill(bg); c.alignment = _align("center"); c.border = _border()
-        _tv(16, round(float(t["pnl_points"]), 2) if t.get("pnl_points") is not None else "")
+        _tv(17, round(float(t["pnl_points"]), 2) if t.get("pnl_points") is not None else "")
         pnl_r = round(float(t["pnl_rupees"]), 0) if t.get("pnl_rupees") is not None else ""
-        c = ws.cell(row=r_idx, column=17, value=pnl_r)
+        c = ws.cell(row=r_idx, column=18, value=pnl_r)
         c.font = _font(bold=True, colour=pnl_fg); c.fill = _fill(bg); c.alignment = _align("center"); c.border = _border()
         pct = round(float(t["pnl_percent"]), 2) if t.get("pnl_percent") is not None else ""
-        _tv(18, f"{pct}%" if pct != "" else "", fg=pnl_fg)
-        c = ws.cell(row=r_idx, column=19, value=outcome)
+        _tv(19, f"{pct}%" if pct != "" else "", fg=pnl_fg)
+        c = ws.cell(row=r_idx, column=20, value=outcome)
         c.font = _font(bold=True, colour=pnl_fg); c.fill = _fill(bg); c.alignment = _align("center"); c.border = _border()
         ws.row_dimensions[r_idx].height = 18
 
