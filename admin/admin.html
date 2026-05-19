@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NSE F&O Screener — Admin Panel</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#1c2333;--border:#30363d;
+  --text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;
+  --red:#f85149;--amber:#d29922;--purple:#bc8cff;--tag-bg:#21262d;
+  --font:'Inter',system-ui,-apple-system,sans-serif;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+
+/* ── Layout ── */
+.app{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);
+  padding:12px 24px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.content{flex:1;overflow-y:auto;padding:24px}
+
+/* ── Sidebar ── */
+.sidebar-header{padding:16px 16px 8px;font-size:11px;font-weight:600;
+  color:var(--muted);letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--border)}
+.sidebar-brand{padding:14px 16px;font-size:13px;font-weight:700;color:var(--text);
+  display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}
+.sidebar-brand span{color:var(--accent)}
+nav a{display:flex;align-items:center;gap:8px;padding:8px 16px;color:var(--muted);
+  text-decoration:none;font-size:13px;border-left:2px solid transparent;transition:.15s}
+nav a:hover{color:var(--text);background:rgba(255,255,255,.04)}
+nav a.active{color:var(--accent);border-left-color:var(--accent);background:rgba(88,166,255,.08)}
+nav a .nav-icon{font-size:14px;width:18px;text-align:center}
+.nav-section{padding:8px 16px 4px;font-size:10px;font-weight:600;color:var(--muted);
+  letter-spacing:.1em;text-transform:uppercase;margin-top:4px}
+
+/* ── Topbar ── */
+.topbar-title{font-size:15px;font-weight:600;flex:1}
+.topbar-title span{color:var(--muted);font-weight:400;font-size:13px;margin-left:6px}
+.badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:12px;letter-spacing:.04em}
+.badge-amber{background:rgba(210,153,34,.15);color:var(--amber);border:1px solid rgba(210,153,34,.3)}
+.badge-green{background:rgba(63,185,80,.12);color:var(--green);border:1px solid rgba(63,185,80,.25)}
+
+/* ── Buttons ── */
+.btn{padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;
+  border:1px solid var(--border);transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{opacity:.85}
+.btn-primary{background:var(--accent);color:#000;border-color:var(--accent)}
+.btn-ghost{background:transparent;color:var(--muted)}
+.btn-ghost:hover{color:var(--text);background:rgba(255,255,255,.06)}
+.btn-danger{background:transparent;color:var(--red);border-color:rgba(248,81,73,.4)}
+.btn-danger:hover{background:rgba(248,81,73,.1)}
+.btn-sm{padding:4px 10px;font-size:12px}
+
+/* ── Panel / Card ── */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  margin-bottom:20px;overflow:hidden}
+.panel-header{padding:14px 20px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px}
+.panel-title{font-size:14px;font-weight:600}
+.panel-sub{font-size:12px;color:var(--muted);margin-left:auto}
+.panel-body{padding:4px 0}
+
+/* ── Setting Row ── */
+.setting-row{display:grid;grid-template-columns:260px 1fr 1fr;
+  align-items:center;padding:10px 20px;border-bottom:1px solid rgba(48,54,61,.5);gap:12px}
+.setting-row:last-child{border-bottom:none}
+.setting-row:hover{background:rgba(255,255,255,.02)}
+.setting-label{font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px}
+.setting-label .key{font-family:monospace;font-size:11px;color:var(--muted);
+  background:var(--tag-bg);padding:1px 5px;border-radius:4px;margin-left:4px}
+.setting-ctrl{display:flex;align-items:center;gap:8px}
+.setting-desc{font-size:12px;color:var(--muted);line-height:1.4}
+
+/* ── Input ── */
+input[type=number],input[type=text],select{
+  background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);padding:5px 9px;font-size:13px;font-family:var(--font);
+  width:90px;transition:.15s}
+input[type=text]{width:80px}
+select{width:80px;cursor:pointer}
+input:focus,select:focus{outline:none;border-color:var(--accent)}
+input.modified,select.modified{border-color:var(--amber)!important;
+  background:rgba(210,153,34,.08)!important}
+.unit{font-size:11px;color:var(--muted);min-width:28px}
+
+/* ── Toggle ── */
+.toggle-wrap{display:flex;align-items:center;gap:8px}
+.toggle{position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;
+  background:#374151;transition:.25s;border-radius:22px}
+.slider:before{position:absolute;content:"";height:16px;width:16px;
+  left:3px;bottom:3px;background:#fff;transition:.25s;border-radius:50%}
+input:checked+.slider{background:var(--green)}
+input:checked+.slider:before{transform:translateX(18px)}
+.toggle-label{font-size:12px;color:var(--muted);min-width:28px}
+
+/* ── Subsection ── */
+.subsection-header{padding:10px 20px 6px;font-size:11px;font-weight:600;
+  color:var(--muted);letter-spacing:.08em;text-transform:uppercase;
+  background:rgba(0,0,0,.2);border-bottom:1px solid rgba(48,54,61,.4)}
+
+/* ── Weight bar ── */
+.weight-row{display:grid;grid-template-columns:220px 80px 160px 1fr;
+  align-items:center;padding:10px 20px;gap:12px;
+  border-bottom:1px solid rgba(48,54,61,.5)}
+.weight-row:last-child{border-bottom:none}
+.weight-row:hover{background:rgba(255,255,255,.02)}
+.weight-bar-bg{height:6px;background:var(--surface2);border-radius:3px;flex:1}
+.weight-bar{height:6px;border-radius:3px;background:var(--accent);transition:.3s}
+.weight-total{font-size:12px;padding:8px 20px;color:var(--muted);
+  display:flex;align-items:center;gap:6px;border-top:1px solid var(--border)}
+.weight-sum{font-weight:700;font-size:14px}
+.weight-sum.ok{color:var(--green)}
+.weight-sum.warn{color:var(--amber)}
+
+/* ── Toast ── */
+#toast{position:fixed;bottom:24px;right:24px;padding:12px 18px;border-radius:8px;
+  font-size:13px;font-weight:500;z-index:9999;opacity:0;transform:translateY(8px);
+  transition:.25s;pointer-events:none;max-width:320px}
+#toast.show{opacity:1;transform:translateY(0)}
+#toast.success{background:#1a3d2b;color:var(--green);border:1px solid rgba(63,185,80,.3)}
+#toast.error{background:#3d1a1a;color:var(--red);border:1px solid rgba(248,81,73,.3)}
+#toast.info{background:#1a2d3d;color:var(--accent);border:1px solid rgba(88,166,255,.3)}
+
+/* ── Status bar ── */
+.statusbar{padding:6px 24px;font-size:11px;color:var(--muted);
+  border-top:1px solid var(--border);background:var(--surface);
+  display:flex;align-items:center;gap:16px;flex-shrink:0}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);
+  display:inline-block;margin-right:4px}
+
+/* ── Section headings ── */
+.section-anchor{scroll-margin-top:16px}
+.change-indicator{width:6px;height:6px;border-radius:50%;background:var(--amber);
+  display:inline-block;margin-left:6px;opacity:0;transition:.2s}
+.change-indicator.visible{opacity:1}
+
+/* ── Confidence grades ── */
+.grade{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700}
+.grade-aplus{background:rgba(63,185,80,.15);color:var(--green)}
+.grade-aminus{background:rgba(88,166,255,.15);color:var(--accent)}
+.grade-b{background:rgba(188,140,255,.15);color:var(--purple)}
+
+/* ── Info callout ── */
+.callout{background:rgba(88,166,255,.07);border:1px solid rgba(88,166,255,.2);
+  border-radius:8px;padding:10px 14px;font-size:12px;color:var(--muted);
+  margin:12px 20px;line-height:1.6}
+.callout strong{color:var(--accent)}
+
+/* ── Mode group (pill selector) ── */
+.mode-group-header{padding:12px 20px;border-bottom:1px solid rgba(48,54,61,.5)}
+.pill-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.pill-row-label{font-size:12px;color:var(--muted);min-width:70px;font-weight:500}
+.pill-group{display:flex;gap:4px;flex-wrap:wrap}
+.pill{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;
+  border:1px solid var(--border);background:var(--surface2);color:var(--muted);
+  transition:.15s;white-space:nowrap;user-select:none}
+.pill:hover{border-color:var(--accent);color:var(--text)}
+.pill.active{background:rgba(88,166,255,.15);border-color:var(--accent);color:var(--accent);font-weight:600}
+.pill.active-green{background:rgba(63,185,80,.12);border-color:var(--green);color:var(--green)}
+.mode-desc{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5;
+  padding-left:80px;font-style:italic}
+.mode-settings{transition:opacity .2s}
+.mode-settings.inactive{opacity:.3}
+.mode-settings.inactive:hover{opacity:.6}
+.mode-settings .setting-row{border-left:2px solid transparent}
+.mode-settings.inactive .setting-row{cursor:default}
+
+/* ── Responsive grid for weight bars ── */
+@media(max-width:900px){
+  .setting-row{grid-template-columns:1fr 1fr}
+  .setting-desc{display:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ── Sidebar ── -->
+<aside class="sidebar">
+  <div class="sidebar-brand">⚡ <span>NSE F&amp;O</span> Admin</div>
+  <div class="nav-section">Configuration</div>
+  <nav id="nav">
+    <a href="#scan"    class="active"><span class="nav-icon">⚙️</span>Scan Settings</a>
+    <a href="#layer1"       ><span class="nav-icon">📊</span>L1: Market Regime</a>
+    <a href="#layer2"       ><span class="nav-icon">🎯</span>L2: Stock Selector</a>
+    <a href="#layer3"       ><span class="nav-icon">📈</span>L3: Technical</a>
+    <a href="#layer4"       ><span class="nav-icon">📉</span>L4: Derivatives</a>
+    <a href="#layer6"       ><span class="nav-icon">🚦</span>L6: Entry Trigger</a>
+    <a href="#layer7"       ><span class="nav-icon">🚪</span>L7: Exit Rules</a>
+    <a href="#layer8"       ><span class="nav-icon">🌐</span>L8: Macro Risk</a>
+    <a href="#paper"        ><span class="nav-icon">📝</span>Paper Trader</a>
+  </nav>
+  <div style="flex:1"></div>
+  <div style="padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">
+    Changes saved to <code style="color:var(--accent)">admin_config.json</code><br>
+    Not connected to live app yet.
+  </div>
+</aside>
+
+<!-- ── Main ── -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title">Admin Panel <span>NSE F&amp;O Options Screener</span></div>
+    <div id="modified-badge" class="badge badge-amber" style="display:none">● Unsaved changes</div>
+    <button class="btn btn-ghost btn-sm" onclick="resetConfig()">↺ Reset to defaults</button>
+    <button class="btn btn-primary btn-sm" onclick="saveConfig()">💾 Save All</button>
+  </div>
+
+  <div class="content" id="content">
+    <div style="color:var(--muted);padding:40px;text-align:center">Loading configuration…</div>
+  </div>
+
+  <div class="statusbar">
+    <span><span class="status-dot"></span>Admin running on port 9001</span>
+    <span id="last-saved">Not saved yet</span>
+    <span style="margin-left:auto;font-style:italic">Changes here do not affect the live screener until connected</span>
+  </div>
+</div>
+
+</div>
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// Schema — defines every setting, its UI type, and description
+// ══════════════════════════════════════════════════════════════
+const SCHEMA = {
+  scan: {
+    label: "Scan Settings", icon: "⚙️",
+    settings: [
+      {key:"interval_minutes",      label:"Scan Interval",           type:"number", unit:"min",  min:1, max:60,  desc:"APScheduler fires every N minutes during market hours (9:15–15:30 IST)"},
+      {key:"min_confidence",        label:"Min Confidence to Alert", type:"select", options:["A+","A-","B"],    desc:"Signals below this grade are not sent to Telegram or paper trader"},
+      {key:"min_oi_threshold",      label:"Min OI Threshold",        type:"number", unit:"lots", min:100, max:10000, desc:"Option chain ATM strike must have OI ≥ this to pass liquidity check"},
+      {key:"min_volume_multiplier", label:"Min Volume Multiplier",   type:"number", unit:"×",   min:0.5, max:5, step:0.1, desc:"Daily volume must be ≥ this × 20-day average to qualify as volume expansion"},
+      {key:"max_bid_ask_spread_pct",label:"Max Bid-Ask Spread",      type:"number", unit:"%",   min:0.1, max:5, step:0.1, desc:"Spread ≥ this % of premium → option rejected as illiquid"},
+      {key:"high_risk_window_hours",label:"Event Risk Window",       type:"number", unit:"hrs", min:1, max:72,  desc:"Layer 8: suppress signals within this many hours of a high-impact event"},
+    ]
+  },
+  layer1: {
+    label: "L1: Market Regime", icon: "📊",
+    desc: "Classifies overall market state from VIX + index structure + breadth. Blocks downstream layers for EVENT_RISK, HIGH_VOL_EXPANSION, THETA_DECAY regimes.",
+    subsections: [
+      {
+        label: "Gate Controls",
+        settings: [
+          {key:"gates.vix_extreme",  label:"VIX Extreme Gate",   type:"toggle", desc:"Block all option buying when VIX exceeds extreme threshold"},
+          {key:"gates.vix_spike",    label:"VIX Spike Gate",     type:"toggle", desc:"Treat rapid VIX spike as HIGH_VOL_EXPANSION even if absolute level is moderate"},
+          {key:"gates.event_risk",   label:"Event Risk Gate",    type:"toggle", desc:"Suppress all signals on scheduled high-impact event days"},
+          {key:"gates.theta_decay",  label:"Theta Decay Gate",   type:"toggle", desc:"Block option buying in low-VIX + neutral breadth (theta environment)"},
+          {key:"gates.call_vix_cap", label:"Call Buying VIX Cap",type:"toggle", desc:"Prevent call buying when VIX exceeds the call-buying cap threshold"},
+          {key:"gates.breadth",      label:"Breadth Gate",       type:"toggle", desc:"Use A/D breadth score to distinguish trending vs rangebound regimes"},
+        ]
+      },
+      {
+        label: "VIX Thresholds",
+        settings: [
+          {key:"thresholds.vix_extreme",        label:"VIX Extreme",       type:"number", unit:"pts", min:15, max:60,  desc:"Above this → HIGH_VOL_EXPANSION, all option buying blocked"},
+          {key:"thresholds.vix_elevated",       label:"VIX Elevated",      type:"number", unit:"pts", min:12, max:35,  desc:"Above this → elevated VIX warning logged"},
+          {key:"thresholds.vix_spike_pct",      label:"VIX Spike %",       type:"number", unit:"%",   min:1,  max:20,  desc:"Daily VIX change % ≥ this triggers HIGH_VOL_EXPANSION"},
+          {key:"thresholds.vix_low_premium",    label:"Low Premium VIX",   type:"number", unit:"pts", min:8,  max:20,  desc:"Below this → premiums cheap note added to signal reason"},
+          {key:"thresholds.vix_call_buying_cap",label:"Call Buying Cap",   type:"number", unit:"pts", min:15, max:35,  desc:"Max VIX to permit call buying (put buying has no VIX cap)"},
+        ]
+      },
+      {
+        label: "Breadth Thresholds",
+        settings: [
+          {key:"thresholds.breadth_bullish_min",       label:"Bullish Breadth Min",        type:"number", unit:"%",  min:50, max:90, desc:"% advancing stocks needed for TRENDING_BULLISH regime"},
+          {key:"thresholds.breadth_bearish_max",       label:"Bearish Breadth Max",        type:"number", unit:"%",  min:10, max:50, desc:"% advancing stocks at or below → TRENDING_BEARISH"},
+          {key:"thresholds.index_bullish_signals_min", label:"Index Bullish Signals Min",  type:"number", unit:"/5", min:2,  max:5,  desc:"Bull signals (price>EMA20, price>EMA50, EMA20>EMA50, VWAP, slope) needed for BULLISH bias"},
+          {key:"thresholds.index_bearish_signals_max", label:"Index Bearish Signals Max",  type:"number", unit:"/5", min:0,  max:3,  desc:"Bull signals ≤ this → BEARISH index bias"},
+          {key:"thresholds.overall_bullish_min",       label:"Overall Bullish Min",        type:"number", unit:"/4", min:1,  max:4,  desc:"Combined signals (nifty bullish, banknifty bullish, breadth>55, VIX<18) needed for BULLISH overall bias"},
+        ]
+      }
+    ]
+  },
+  layer2: {
+    label: "L2: Stock Selector", icon: "🎯",
+    desc: "Filters ~1200 F&O stocks to top-N bullish + top-N bearish by relative strength. NIFTY / BANKNIFTY / FINNIFTY are always prepended.",
+    settings: [
+      {key:"top_n",                label:"Top N per Direction",   type:"number", unit:"stocks", min:5, max:50, desc:"Top N bullish + top N bearish candidates = up to 2×N screened"},
+      {key:"rs_threshold",         label:"RS Threshold (Stocks)", type:"number", unit:"", min:0.001, max:0.1, step:0.001, desc:"Stock RS vs Nifty must exceed this (absolute) to qualify as bullish/bearish candidate"},
+      {key:"rs_index_threshold",   label:"RS Threshold (Indices)",type:"number", unit:"", min:0.001, max:0.1, step:0.001, desc:"Same threshold applied to BankNifty/FinNifty vs Nifty"},
+      {key:"liquidity_ttl_s",      label:"Liquidity Cache TTL",   type:"number", unit:"sec",  min:60, max:7200, desc:"Option chain liquidity check is cached for this duration (seconds)"},
+      {key:"volume_lookback_days", label:"Volume Lookback",       type:"number", unit:"days", min:5,  max:60,   desc:"Days of daily OHLCV used to compute relative strength"},
+    ]
+  },
+  layer3: {
+    label: "L3: Technical", icon: "📈",
+    desc: "Multi-timeframe confluence engine. HTF (daily) → trend filter. MTF (15-min) → RSI divergence primary signal. LTF (5-min) → entry confirmation.",
+    subsections: [
+      {
+        label: "Gate Enables",
+        settings: [
+          {key:"gates.htf_trend",        label:"HTF Trend Gate",        type:"toggle", weight_key:"weights.htf_trend",       desc:"Daily EMA alignment filter — 20/50/200 stack"},
+          {key:"gates.rsi_divergence",   label:"RSI Divergence Gate",   type:"toggle", weight_key:"weights.rsi_divergence",   desc:"Primary signal: price lower-low + RSI higher-low on 15-min"},
+          {key:"gates.macd_cross",       label:"MACD Cross Gate",       type:"toggle", weight_key:"weights.macd_cross",       desc:"MACD histogram sign flip on 5-min (entry confirmation)"},
+          {key:"gates.vwap",             label:"VWAP Gate",             type:"toggle", weight_key:"weights.vwap",             desc:"Price above/below intraday VWAP on 5-min"},
+          {key:"gates.volume_expansion", label:"Volume Expansion Gate", type:"toggle", weight_key:"weights.volume_expansion", desc:"Current 5-min bar volume > N× 20-bar average"},
+          {key:"gates.candle_pattern",   label:"Candle Pattern Gate",   type:"toggle", weight_key:"weights.candle_pattern",   desc:"Bonus: bullish/bearish candlestick pattern on 15-min (+5 pts, not a hard gate)"},
+        ]
+      },
+      {
+        label: "Gate Weights (total should = 100)",
+        type: "weights",
+        section: "layer3",
+        keys: ["htf_trend","rsi_divergence","macd_cross","vwap","volume_expansion","candle_pattern"],
+        labels: ["HTF Trend","RSI Divergence","MACD Cross","VWAP","Volume Expansion","Candle Pattern"],
+      },
+      {
+        label: "RSI Divergence Parameters",
+        settings: [
+          {key:"thresholds.rsi_period",              label:"RSI Period",             type:"number", unit:"bars", min:5,   max:30,  desc:"Lookback period for RSI calculation (default Wilder: 14)"},
+          {key:"thresholds.divergence_lookback",     label:"Divergence Lookback",    type:"number", unit:"bars", min:20,  max:200, desc:"Number of 15-min bars scanned for pivot pairs"},
+          {key:"thresholds.pivot_left",              label:"Pivot Confirmation Left", type:"number", unit:"bars", min:1,   max:10,  desc:"Bars to the left required to confirm a swing high/low"},
+          {key:"thresholds.pivot_right",             label:"Pivot Confirmation Right",type:"number", unit:"bars", min:0,   max:5,   desc:"Bars to the right (0 = detect on current bar, no lag)"},
+          {key:"thresholds.rsi_bullish_penalty_above",label:"Bull Div RSI Penalty Above",type:"number",unit:"",min:40,max:70,desc:"Bullish divergence strength penalised ×0.6 when RSI is above this (divergence more meaningful when RSI is oversold)"},
+          {key:"thresholds.rsi_bearish_penalty_below",label:"Bear Div RSI Penalty Below",type:"number",unit:"",min:30,max:60,desc:"Bearish divergence strength penalised ×0.6 when RSI is below this"},
+          {key:"thresholds.divergence_strength_penalty",label:"Divergence Penalty Factor",type:"number",unit:"×",min:0.1,max:1.0,step:0.1,desc:"Multiply divergence strength by this when RSI penalty applies"},
+        ]
+      },
+      {
+        label: "MACD & Volume Parameters",
+        settings: [
+          {key:"thresholds.macd_fast",           label:"MACD Fast EMA",     type:"number", unit:"bars", min:3,  max:30,  desc:"Fast EMA period for MACD (standard: 12)"},
+          {key:"thresholds.macd_slow",           label:"MACD Slow EMA",     type:"number", unit:"bars", min:10, max:50,  desc:"Slow EMA period for MACD (standard: 26)"},
+          {key:"thresholds.macd_signal_period",  label:"MACD Signal",       type:"number", unit:"bars", min:3,  max:20,  desc:"Signal line EMA period (standard: 9)"},
+          {key:"thresholds.volume_expansion_mult",label:"Volume Expansion ×",type:"number", unit:"×",  min:1.0, max:5.0, step:0.1, desc:"5-min bar volume must exceed avg × this to flag volume_expansion"},
+          {key:"thresholds.volume_avg_bars",     label:"Volume Avg Bars",    type:"number", unit:"bars", min:5, max:50,  desc:"Number of prior bars used to compute average volume"},
+        ]
+      },
+      {
+        label: "SuperTrend & EMA",
+        settings: [
+          {key:"thresholds.supertrend_period", label:"SuperTrend Period", type:"number", unit:"bars", min:5,  max:30,  desc:"ATR period for SuperTrend calculation"},
+          {key:"thresholds.supertrend_mult",   label:"SuperTrend Mult",   type:"number", unit:"×",   min:1.0, max:6.0, step:0.5, desc:"ATR multiplier for SuperTrend bands (default: 3.0)"},
+          {key:"thresholds.ema_short",         label:"EMA Short Period",  type:"number", unit:"bars", min:5,  max:50,  desc:"Short EMA period (used in HTF trend + LTF display)"},
+          {key:"thresholds.ema_mid",           label:"EMA Mid Period",    type:"number", unit:"bars", min:20, max:100, desc:"Mid EMA period"},
+          {key:"thresholds.ema_long",          label:"EMA Long Period",   type:"number", unit:"bars", min:50, max:500, desc:"Long EMA period (200-day is standard)"},
+        ]
+      },
+      {
+        label: "Score Threshold",
+        settings: [
+          {key:"thresholds.min_score", label:"Min Score (BULLISH/BEARISH)", type:"number", unit:"pts", min:10, max:100, desc:"Weighted gate score must reach this to call direction BULLISH or BEARISH (vs NEUTRAL)"},
+        ]
+      }
+    ]
+  },
+  layer4: {
+    label: "L4: Derivatives", icon: "📉",
+    desc: "Option chain analysis: PCR, Max Pain, OI buildup classification, IV skew, call/put writing concentration.",
+    subsections: [
+      {
+        label: "Gate Controls",
+        settings: [
+          {key:"gates.pcr",          label:"PCR Gate",           type:"toggle", desc:"Put/Call Ratio signal used in Layer 6 entry gates"},
+          {key:"gates.max_pain",     label:"Max Pain Gate",      type:"toggle", desc:"Compute max pain strike from full OI-weighted chain"},
+          {key:"gates.writing_bias", label:"Writing Bias Gate",  type:"toggle", desc:"Detect call vs put writing concentration near ATM"},
+          {key:"gates.iv_skew",      label:"IV Skew Gate",       type:"toggle", desc:"Compare PE IV vs CE IV at ATM (positive skew = fear)"},
+        ]
+      },
+      {
+        label: "PCR Thresholds",
+        settings: [
+          {key:"thresholds.pcr_bearish_below",    label:"PCR Bearish Below",   type:"number", unit:"",  min:0.3, max:1.0, step:0.05, desc:"PCR < this → BEARISH (call OI dominates, fear of rise)"},
+          {key:"thresholds.pcr_bullish_above",    label:"PCR Bullish Above",   type:"number", unit:"",  min:1.0, max:2.0, step:0.05, desc:"PCR > this → BULLISH (put OI dominates, institutions hedged)"},
+          {key:"thresholds.pcr_overheated_above", label:"PCR Overheated Above",type:"number", unit:"",  min:1.3, max:3.0, step:0.1,  desc:"PCR > this → OVERHEATED (excessive put writing, reversal risk)"},
+        ]
+      },
+      {
+        label: "OI & Writing Parameters",
+        settings: [
+          {key:"thresholds.atm_range_pct",          label:"ATM Range %",              type:"number", unit:"%", min:0.5, max:5.0, step:0.5, desc:"% range around spot price treated as 'near ATM' for writing bias detection"},
+          {key:"thresholds.writing_dominance_ratio", label:"Writing Dominance Ratio", type:"number", unit:"×", min:1.1, max:3.0, step:0.1, desc:"CE OI / PE OI (or vice versa) must exceed this to declare writing bias"},
+        ]
+      }
+    ]
+  },
+  layer6: {
+    label: "L6: Entry Trigger", icon: "🚦",
+    desc: "Aggregates all layer outputs. Emits a Signal only when weighted gate score meets confidence threshold. A+ requires RSI divergence.",
+    subsections: [
+      {
+        label: "Gate Enables (apply to both CALL and PUT directions)",
+        settings: [
+          {key:"gates.regime",           label:"Regime Gate",           type:"toggle", weight_key:"weights.regime",           desc:"Market regime must not be TRENDING_BEARISH / EVENT_RISK / HIGH_VOL_EXPANSION for calls"},
+          {key:"gates.rs",               label:"Relative Strength Gate", type:"toggle", weight_key:"weights.rs",              desc:"RS score must be positive (>0.01) for calls, negative for puts"},
+          {key:"gates.rsi_divergence",   label:"RSI Divergence Gate",   type:"toggle", weight_key:"weights.rsi_divergence",   desc:"RSI divergence on 15-min — required for A+ grade"},
+          {key:"gates.htf_trend",        label:"HTF Trend Gate",        type:"toggle", weight_key:"weights.htf_trend",        desc:"Daily trend must align with trade direction"},
+          {key:"gates.macd_cross",       label:"MACD Cross Gate",       type:"toggle", weight_key:"weights.macd_cross",       desc:"MACD histogram flip on 5-min in trade direction"},
+          {key:"gates.vwap",             label:"VWAP Gate",             type:"toggle", weight_key:"weights.vwap",             desc:"Price above VWAP for calls, below for puts"},
+          {key:"gates.volume_expansion", label:"Volume Expansion Gate", type:"toggle", weight_key:"weights.volume_expansion", desc:"Volume expansion on 5-min bar"},
+          {key:"gates.derivatives",      label:"Derivatives Gate",      type:"toggle", weight_key:"weights.derivatives",      desc:"Put writing/short covering for calls; call writing/short buildup for puts"},
+          {key:"gates.pcr",              label:"PCR Gate",              type:"toggle", weight_key:"weights.pcr",              desc:"PCR ≥ 0.8 for calls; PCR < 1.0 for puts"},
+        ]
+      },
+      {
+        label: "Gate Weights (total should = 100)",
+        type: "weights",
+        section: "layer6",
+        keys: ["regime","rs","rsi_divergence","htf_trend","macd_cross","vwap","volume_expansion","derivatives","pcr"],
+        labels: ["Regime","Rel. Strength","RSI Divergence","HTF Trend","MACD Cross","VWAP","Volume Expansion","Derivatives","PCR"],
+      },
+      {
+        label: "Confidence Thresholds",
+        settings: [
+          {key:"thresholds.a_plus_score",              label:"A+ Score Threshold",      type:"number", unit:"pts", min:60, max:100, desc:"Minimum weighted gate score for A+ grade (highest conviction)"},
+          {key:"thresholds.a_minus_score",             label:"A− Score Threshold",      type:"number", unit:"pts", min:40, max:90,  desc:"Minimum score for A− grade"},
+          {key:"thresholds.b_score",                   label:"B Score Threshold",       type:"number", unit:"pts", min:30, max:80,  desc:"Minimum score for B grade (below this = no signal)"},
+          {key:"thresholds.a_plus_requires_divergence",label:"A+ Requires Divergence",  type:"toggle", desc:"A+ grade only issued when RSI divergence gate is true"},
+        ]
+      },
+      {
+        label: "Gate Trigger Levels",
+        settings: [
+          {key:"thresholds.rs_positive_min",       label:"RS Positive Min (Call)",  type:"number", unit:"", min:0, max:0.05, step:0.001, desc:"RS score must exceed this for rs_positive gate to pass (calls)"},
+          {key:"thresholds.rs_negative_min",       label:"RS Negative Min (Put)",   type:"number", unit:"", min:0, max:0.05, step:0.001, desc:"RS score below −this for rs_negative gate to pass (puts)"},
+          {key:"thresholds.pcr_call_supportive_min",label:"PCR Min (Call)",         type:"number", unit:"", min:0.3, max:1.5, step:0.05, desc:"PCR must be ≥ this for pcr_supportive (call) gate"},
+          {key:"thresholds.pcr_put_bearish_max",   label:"PCR Max (Put)",           type:"number", unit:"", min:0.5, max:2.0, step:0.05, desc:"PCR must be < this for pcr_bearish (put) gate"},
+        ]
+      },
+      {
+        label: "ATR-Based Entry / SL / Targets",
+        settings: [
+          {key:"thresholds.atr_entry_mult", label:"Entry Zone ATR ×", type:"number", unit:"×", min:0.1, max:1.0, step:0.05, desc:"Entry zone = spot ± (ATR × this). Small confirm move before entry."},
+          {key:"thresholds.atr_sl_mult",    label:"Stop Loss ATR ×",  type:"number", unit:"×", min:0.5, max:3.0, step:0.1,  desc:"SL = spot ∓ (ATR × this)"},
+          {key:"thresholds.atr_t1_mult",    label:"T1 ATR ×",         type:"number", unit:"×", min:0.5, max:3.0, step:0.1,  desc:"T1 target = spot ± (ATR × this) — 1:1 R:R"},
+          {key:"thresholds.atr_t2_mult",    label:"T2 ATR ×",         type:"number", unit:"×", min:1.0, max:5.0, step:0.1,  desc:"T2 target = spot ± (ATR × this) — 1:2 R:R"},
+          {key:"thresholds.atr_min_pct",    label:"ATR Min % of Spot", type:"number", unit:"×", min:0.001, max:0.02, step:0.001, desc:"Floor: if computed ATR is smaller than spot × this, use this floor instead"},
+        ]
+      }
+    ]
+  },
+  layer7: {
+    label: "L7: Exit Rules", icon: "🚪",
+    desc: "Evaluates live exit conditions for active paper trades. All stops are spot-price-structure based, never option-premium based.",
+    subsections: [
+      {
+        label: "Gate Controls",
+        settings: [
+          {key:"gates.time_exit",           label:"Time Exit Gate",           type:"toggle", desc:"Exit trade if no momentum after N minutes"},
+          {key:"gates.vwap_exit",           label:"VWAP Exit Gate",           type:"toggle", desc:"Exit when spot crosses VWAP against position direction"},
+          {key:"gates.rsi_divergence_exit", label:"RSI Divergence Exit Gate", type:"toggle", desc:"Exit on counter-divergence developing against position"},
+          {key:"gates.volume_exhaustion",   label:"Volume Exhaustion Gate",   type:"toggle", desc:"Exit when volume collapses to < ratio × average after minimum hold"},
+          {key:"gates.partial_booking",     label:"Partial Booking Gate",     type:"toggle", desc:"Book 50% at T1 and trail stop to entry (T1 = partial, T2 = full)"},
+        ]
+      },
+      {
+        label: "Time Exit",
+        settings: [
+          {key:"thresholds.time_exit_minutes",     label:"Time Exit After",        type:"number", unit:"min",  min:15, max:180, desc:"Exit the trade if still open with no momentum after this many minutes"},
+          {key:"thresholds.momentum_threshold_pct",label:"Momentum Threshold",    type:"number", unit:"%",   min:0.01, max:1.0, step:0.01, desc:"Minimum % spot move in trade direction to count as 'momentum present'"},
+        ]
+      },
+      {
+        label: "RSI Divergence Exit",
+        settings: [
+          {key:"thresholds.rsi_divergence_call_exit_below",label:"Call Exit RSI Below", type:"number", unit:"",min:40,max:80,desc:"For CALL: exit if new spot peak forms but RSI is below this (bearish divergence)"},
+          {key:"thresholds.rsi_divergence_put_exit_above", label:"Put Exit RSI Above",  type:"number", unit:"",min:20,max:60,desc:"For PUT: exit if new spot trough forms but RSI is above this (bullish divergence)"},
+        ]
+      },
+      {
+        label: "Volume Exhaustion",
+        settings: [
+          {key:"thresholds.volume_exhaustion_ratio",       label:"Exhaustion Vol Ratio",  type:"number", unit:"×",  min:0.1, max:0.9, step:0.05, desc:"Volume ratio < this triggers exhaustion exit"},
+          {key:"thresholds.volume_exhaustion_min_minutes", label:"Exhaustion Min Hold",   type:"number", unit:"min",min:10,  max:90,             desc:"Only check volume exhaustion after this many minutes in trade"},
+        ]
+      },
+      {
+        label: "Targets",
+        settings: [
+          {key:"thresholds.t1_partial_pct", label:"T1 Partial Booking %", type:"number", unit:"%", min:20, max:80, desc:"Percentage of position to close at T1 (remainder runs to T2 with trailed stop)"},
+          {key:"thresholds.t1_atr_mult",    label:"T1 ATR Multiplier",    type:"number", unit:"×", min:0.5, max:3.0, step:0.1, desc:"T1 = entry ± (ATR × this)"},
+          {key:"thresholds.t2_atr_mult",    label:"T2 ATR Multiplier",    type:"number", unit:"×", min:1.0, max:5.0, step:0.1, desc:"T2 = entry ± (ATR × this) — full exit"},
+        ]
+      }
+    ]
+  },
+  layer8: {
+    label: "L8: Macro Risk", icon: "🌐",
+    desc: "Suppresses signals near high-impact events or during macro stress (FII selling, currency stress).",
+    subsections: [
+      {
+        label: "Gate Controls",
+        settings: [
+          {key:"gates.event_calendar", label:"Event Calendar Gate", type:"toggle", desc:"Load events.json + builtin calendar; suppress signals within window"},
+          {key:"gates.usdinr",         label:"USD/INR Gate",        type:"toggle", desc:"Flag macro stress when USD/INR exceeds threshold"},
+          {key:"gates.fii_flow",       label:"FII Flow Gate",       type:"toggle", desc:"Flag macro stress on heavy FII net selling days"},
+        ]
+      },
+      {
+        label: "Thresholds",
+        settings: [
+          {key:"thresholds.event_window_hours",  label:"Event Risk Window",     type:"number", unit:"hrs",  min:1,   max:96,    desc:"Suppress signals within this many hours of a high-impact event"},
+          {key:"thresholds.usdinr_stress_above", label:"USD/INR Stress Above",  type:"number", unit:"₹",   min:70,  max:100,   step:0.5, desc:"USD/INR above this level → macro stress flag added"},
+          {key:"thresholds.fii_selling_below",   label:"FII Selling Threshold", type:"number", unit:"₹Cr", min:-10000, max:0,  desc:"FII net flow below this (crores) → heavy selling flag added"},
+        ]
+      }
+    ]
+  },
+  paper: {
+    label: "Paper Trader", icon: "📝",
+    desc: "Auto-entry/exit paper trade engine. Uses a dedicated SQLite DB at ~/nse-fno-screener-data/screener_trades.db with WAL mode.",
+    subsections: [
+      {
+        label: "Master Controls",
+        settings: [
+          {key:"enabled",    label:"Paper Trading Enabled", type:"toggle", desc:"Master switch — when off, no paper trades are created from signals"},
+          {key:"auto_entry", label:"Auto Entry",            type:"toggle", desc:"Automatically enter trade when entry zone is breached"},
+          {key:"auto_exit",  label:"Auto Exit",             type:"toggle", desc:"Automatically exit on SL / T1 / T2 / time rule hits"},
+          {key:"itm_steps",  label:"ITM Steps",             type:"number", unit:"strikes", min:1, max:3, desc:"How many strikes in-the-money to pick for the option (1 = first ITM)"},
+        ]
+      },
+      {
+        label: "Position Sizing", type:"mode_group", mode_key:"sizing_mode",
+        modes: [
+          {
+            value: "lots", label: "Fixed Lots",
+            desc: "Trade a fixed number of lots per signal regardless of premium price.",
+            settings: [
+              {key:"default_lots", label:"Lots per Trade", type:"number", unit:"lots", min:1, max:50,
+                desc:"Number of lots entered for every qualifying signal."},
+            ]
+          },
+          {
+            value: "capital", label: "Capital ₹",
+            desc: "System back-calculates lot count to keep total premium outlay within cap.",
+            settings: [
+              {key:"max_capital_per_trade", label:"Max Capital", type:"number", unit:"₹", min:1000, max:500000, step:500,
+                desc:"Maximum INR of premium to deploy per trade. Lots = floor(capital / (premium × lot_size))."},
+            ]
+          },
+          {
+            value: "risk", label: "Risk ₹",
+            desc: "System back-calculates lots so that a full stop-out equals the defined risk amount.",
+            settings: [
+              {key:"max_loss_per_trade", label:"Max Loss", type:"number", unit:"₹", min:100, max:100000, step:100,
+                desc:"Hard maximum INR loss per trade (entry premium × lots × lot_size). Lots are sized accordingly."},
+            ]
+          }
+        ]
+      },
+      {
+        label: "Stop Loss", type:"mode_group", mode_key:"sl_mode",
+        modes: [
+          {
+            value: "spot_atr", label: "Spot ATR",
+            desc: "Exit when spot closes beyond the ATR-based SL level set at signal time (Layer 7 default).",
+            settings: []
+          },
+          {
+            value: "premium_pct", label: "Premium %",
+            desc: "Exit when option premium drops by this percentage from entry price.",
+            settings: [
+              {key:"sl_premium_pct", label:"Drop %", type:"number", unit:"%", min:10, max:90, step:5,
+                desc:"e.g. 50 → exit when premium falls to 50% of entry (premium halved)."},
+            ]
+          },
+          {
+            value: "premium_amount", label: "₹ Amount",
+            desc: "Exit when cumulative premium loss across all lots reaches a fixed INR threshold.",
+            settings: [
+              {key:"sl_premium_amount", label:"Max Loss", type:"number", unit:"₹", min:100, max:50000, step:100,
+                desc:"Total loss = (entry_prem − current_prem) × lots × lot_size. Exit when ≥ this INR."},
+            ]
+          }
+        ]
+      },
+      {
+        label: "Target 1 — Partial Exit", type:"mode_group", mode_key:"t1_mode",
+        common_settings: [
+          {key:"t1_partial_pct", label:"Book % at T1", type:"number", unit:"%", min:10, max:90, step:10,
+            desc:"Percentage of position to close at T1. Stop is trailed to entry for the remaining position."},
+        ],
+        modes: [
+          {
+            value: "spot_atr", label: "Spot ATR",
+            desc: "T1 when spot moves 1× ATR in the trade direction from entry (Layer 7 default).",
+            settings: []
+          },
+          {
+            value: "premium_pct", label: "Premium %",
+            desc: "T1 when option premium has gained this percentage above entry.",
+            settings: [
+              {key:"t1_premium_pct", label:"Gain %", type:"number", unit:"%", min:20, max:500, step:10,
+                desc:"e.g. 100 → T1 when premium doubles from entry price."},
+            ]
+          },
+          {
+            value: "premium_amount", label: "₹ Amount",
+            desc: "T1 when total premium profit across all lots reaches a fixed INR threshold.",
+            settings: [
+              {key:"t1_premium_amount", label:"Gain ₹", type:"number", unit:"₹", min:100, max:100000, step:100,
+                desc:"Total gain = (current_prem − entry_prem) × lots × lot_size. Book partial when ≥ this INR."},
+            ]
+          }
+        ]
+      },
+      {
+        label: "Target 2 — Full Exit", type:"mode_group", mode_key:"t2_mode",
+        modes: [
+          {
+            value: "spot_atr", label: "Spot ATR",
+            desc: "T2 when spot moves 2× ATR in the trade direction from entry (Layer 7 default).",
+            settings: []
+          },
+          {
+            value: "premium_pct", label: "Premium %",
+            desc: "T2 when option premium has gained this percentage above entry.",
+            settings: [
+              {key:"t2_premium_pct", label:"Gain %", type:"number", unit:"%", min:50, max:1000, step:10,
+                desc:"e.g. 200 → T2 when premium is 3× entry (200% gain). Full exit."},
+            ]
+          },
+          {
+            value: "premium_amount", label: "₹ Amount",
+            desc: "T2 when total premium profit across all lots reaches a fixed INR threshold.",
+            settings: [
+              {key:"t2_premium_amount", label:"Gain ₹", type:"number", unit:"₹", min:200, max:200000, step:100,
+                desc:"Full exit when cumulative gain = (current_prem − entry_prem) × lots × lot_size ≥ this INR."},
+            ]
+          }
+        ]
+      },
+      {
+        label: "Time Rules & Misc",
+        settings: [
+          {key:"market_open",              label:"Market Open",             type:"text",   desc:"No new entries accepted before this time (HH:MM IST)"},
+          {key:"exit_before_close",        label:"Force Exit Before Close", type:"text",   desc:"All active trades force-closed at this time (HH:MM IST)"},
+          {key:"market_close_hard",        label:"Hard Close",              type:"text",   desc:"No new entries at or after this time"},
+          {key:"instruments_refresh_hours",label:"Instruments Refresh",    type:"number", unit:"hrs", min:1, max:72, desc:"Re-download NSE instruments CSV after this many hours"},
+          {key:"retry_attempts",           label:"API Retry Attempts",      type:"number", unit:"×",  min:1, max:10, desc:"Retries for Kite LTP calls before giving up"},
+          {key:"retry_delay_s",            label:"Retry Delay",             type:"number", unit:"sec",min:1, max:30, desc:"Seconds between API retry attempts"},
+        ]
+      }
+    ]
+  }
+};
+
+// ══════════════════════════════════════════════════════════════
+// State
+// ══════════════════════════════════════════════════════════════
+let config = {};
+let defaults = {};
+let hasChanges = false;
+
+// ══════════════════════════════════════════════════════════════
+// Boot
+// ══════════════════════════════════════════════════════════════
+async function boot() {
+  try {
+    const [cfgRes, defRes] = await Promise.all([
+      fetch('/api/config'),
+      fetch('/api/defaults'),
+    ]);
+    config = await cfgRes.json();
+    defaults = await defRes.json();
+    renderAll();
+    setupNavHighlight();
+  } catch(e) {
+    document.getElementById('content').innerHTML =
+      `<div style="color:var(--red);padding:40px">Failed to load config: ${e.message}</div>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Deep get/set helpers
+// ══════════════════════════════════════════════════════════════
+function deepGet(obj, path) {
+  return path.split('.').reduce((o, k) => (o && o[k] !== undefined ? o[k] : undefined), obj);
+}
+function deepSet(obj, path, value) {
+  const keys = path.split('.');
+  let cur = obj;
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (!cur[keys[i]] || typeof cur[keys[i]] !== 'object') cur[keys[i]] = {};
+    cur = cur[keys[i]];
+  }
+  cur[keys[keys.length - 1]] = value;
+}
+function configGet(section, key) {
+  return deepGet(config[section] || {}, key);
+}
+function defaultGet(section, key) {
+  return deepGet(defaults[section] || {}, key);
+}
+
+// ══════════════════════════════════════════════════════════════
+// Render
+// ══════════════════════════════════════════════════════════════
+function renderAll() {
+  const el = document.getElementById('content');
+  let html = '';
+  for (const [sectionId, schema] of Object.entries(SCHEMA)) {
+    html += renderSection(sectionId, schema);
+  }
+  el.innerHTML = html;
+  updateWeightBars();
+}
+
+function renderSection(sectionId, schema) {
+  const dbKey = sectionId === 'paper' ? 'paper_trader' : sectionId;
+  let html = `<div id="${sectionId}" class="section-anchor">
+    <div class="panel">
+      <div class="panel-header">
+        <span style="font-size:18px">${schema.icon}</span>
+        <div>
+          <div class="panel-title">${schema.label}
+            <span id="ind-${sectionId}" class="change-indicator">●</span>
+          </div>
+          ${schema.desc ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${schema.desc}</div>` : ''}
+        </div>
+      </div>
+      <div class="panel-body">`;
+
+  if (schema.settings) {
+    html += schema.settings.map(s => renderSettingRow(dbKey, s)).join('');
+  }
+  if (schema.subsections) {
+    for (const sub of schema.subsections) {
+      if (sub.type === 'mode_group') {
+        html += renderModeGroupSubsection(sub, sectionId);
+      } else if (sub.type === 'weights') {
+        html += renderWeightSubsection(sub, dbKey);
+      } else {
+        html += `<div class="subsection-header">${sub.label}</div>`;
+        html += sub.settings.map(s => renderSettingRow(dbKey, s)).join('');
+      }
+    }
+  }
+
+  html += `</div></div></div>`;
+  return html;
+}
+
+function renderSettingRow(section, s) {
+  const val = configGet(section, s.key);
+  const def = defaultGet(section, s.key);
+  const isModified = JSON.stringify(val) !== JSON.stringify(def);
+  const inputId = `inp-${section}-${s.key.replace(/\./g, '-')}`;
+
+  let ctrl = '';
+  if (s.type === 'toggle') {
+    const checked = val === true ? 'checked' : '';
+    ctrl = `<label class="toggle" title="${s.desc}">
+      <input type="checkbox" id="${inputId}" ${checked}
+        onchange="handleChange('${section}','${s.key}',this.checked)">
+      <span class="slider"></span>
+    </label>
+    <span class="toggle-label" style="color:${val ? 'var(--green)' : 'var(--muted)'};font-size:12px">
+      ${val ? 'ON' : 'OFF'}
+    </span>`;
+  } else if (s.type === 'select') {
+    const opts = s.options.map(o => `<option value="${o}" ${o === val ? 'selected' : ''}>${o}</option>`).join('');
+    ctrl = `<select id="${inputId}" class="${isModified ? 'modified' : ''}"
+      onchange="handleChange('${section}','${s.key}',this.value)">
+      ${opts}
+    </select>`;
+  } else {
+    const step = s.step !== undefined ? `step="${s.step}"` : '';
+    const min = s.min !== undefined ? `min="${s.min}"` : '';
+    const max = s.max !== undefined ? `max="${s.max}"` : '';
+    ctrl = `<input type="${s.type}" id="${inputId}" value="${val !== undefined ? val : ''}"
+      ${min} ${max} ${step} class="${isModified ? 'modified' : ''}"
+      oninput="handleChange('${section}','${s.key}',parseInputVal(this))"
+      onchange="handleChange('${section}','${s.key}',parseInputVal(this))">`;
+  }
+
+  const modDot = isModified
+    ? `<span title="Modified from default (${def})" style="color:var(--amber);font-size:10px;margin-left:4px">●</span>`
+    : '';
+
+  return `<div class="setting-row">
+    <div class="setting-label">${s.label}${modDot}</div>
+    <div class="setting-ctrl">
+      ${ctrl}
+      ${s.unit ? `<span class="unit">${s.unit}</span>` : ''}
+    </div>
+    <div class="setting-desc">${s.desc}</div>
+  </div>`;
+}
+
+function renderModeGroupSubsection(sub, sectionId) {
+  const dbKey = sectionId === 'paper' ? 'paper_trader' : sectionId;
+  const currentMode = configGet(dbKey, sub.mode_key) || sub.modes[0].value;
+  const activeMode  = sub.modes.find(m => m.value === currentMode) || sub.modes[0];
+
+  let html = `<div class="subsection-header">${sub.label}</div>`;
+
+  // ── Pill selector + description ──────────────────────────────────────────
+  html += `<div class="mode-group-header">
+    <div class="pill-row">
+      <span class="pill-row-label">Method</span>
+      <div class="pill-group">`;
+  for (const mode of sub.modes) {
+    const active = mode.value === currentMode;
+    html += `<button class="pill ${active ? 'active' : ''}"
+      id="pill-${dbKey}-${sub.mode_key}-${mode.value}"
+      onclick="selectMode('${dbKey}','${sub.mode_key}','${mode.value}','${sectionId}',event)">
+      ${mode.label}
+    </button>`;
+  }
+  html += `</div></div>
+    <div class="mode-desc" id="modedesc-${dbKey}-${sub.mode_key}">${activeMode.desc}</div>
+  </div>`;
+
+  // ── Per-mode settings (always rendered; inactive ones are dimmed) ─────────
+  for (const mode of sub.modes) {
+    if (!mode.settings || mode.settings.length === 0) continue;
+    const active = mode.value === currentMode;
+    html += `<div class="mode-settings ${active ? '' : 'inactive'}"
+      id="modesettings-${dbKey}-${sub.mode_key}-${mode.value}">`;
+    html += mode.settings.map(s => renderSettingRow(dbKey, s)).join('');
+    html += `</div>`;
+  }
+
+  // ── Common settings (always active, shown below all mode settings) ────────
+  if (sub.common_settings && sub.common_settings.length > 0) {
+    html += `<div style="border-top:1px dashed rgba(48,54,61,.8);margin:0 20px"></div>`;
+    html += sub.common_settings.map(s => renderSettingRow(dbKey, s)).join('');
+  }
+
+  return html;
+}
+
+function selectMode(dbKey, modeKey, value, sectionId, evt) {
+  // Update config
+  const section = dbKey;
+  deepSet(config[section] || (config[section] = {}), modeKey, value);
+  markChanged(section, modeKey, value);
+
+  // Update pills
+  const schema = SCHEMA[sectionId];
+  const sub = (schema.subsections || []).find(s => s.mode_key === modeKey);
+  if (!sub) return;
+
+  for (const mode of sub.modes) {
+    const pill = document.getElementById(`pill-${dbKey}-${modeKey}-${mode.value}`);
+    if (pill) pill.classList.toggle('active', mode.value === value);
+
+    if (mode.settings && mode.settings.length > 0) {
+      const el = document.getElementById(`modesettings-${dbKey}-${modeKey}-${mode.value}`);
+      if (el) el.classList.toggle('inactive', mode.value !== value);
+    }
+  }
+
+  // Update description
+  const descEl = document.getElementById(`modedesc-${dbKey}-${modeKey}`);
+  if (descEl) {
+    const active = sub.modes.find(m => m.value === value);
+    descEl.textContent = active ? active.desc : '';
+  }
+}
+
+function renderWeightSubsection(sub, section) {
+  let html = `<div class="subsection-header">${sub.label}</div>`;
+  const total = sub.keys.reduce((s, k) => s + (configGet(section, `weights.${k}`) || 0), 0);
+  const totalColor = total === 100 ? 'ok' : 'warn';
+  html += `<div id="weight-total-${section}" class="weight-total">
+    Weights total: <span class="weight-sum ${totalColor}" id="wsum-${section}">${total}</span> / 100
+    ${total !== 100 ? `<span style="color:var(--amber);font-size:11px;margin-left:4px">⚠ Should sum to 100</span>` : `<span style="color:var(--green);font-size:11px;margin-left:4px">✓</span>`}
+  </div>`;
+  for (let i = 0; i < sub.keys.length; i++) {
+    const k = sub.keys[i];
+    const lbl = sub.labels[i];
+    const val = configGet(section, `weights.${k}`) || 0;
+    const def = defaultGet(section, `weights.${k}`) || 0;
+    const isModified = val !== def;
+    const inputId = `inp-${section}-weights-${k}`;
+    const pct = Math.min(100, Math.max(0, val));
+    html += `<div class="weight-row">
+      <div class="setting-label">${lbl}
+        ${isModified ? `<span title="Default: ${def}" style="color:var(--amber);font-size:10px;margin-left:4px">●</span>` : ''}
+      </div>
+      <input type="number" id="${inputId}" value="${val}" min="0" max="100"
+        class="${isModified ? 'modified' : ''}"
+        oninput="handleWeightChange('${section}','${k}',parseInputVal(this))"
+        onchange="handleWeightChange('${section}','${k}',parseInputVal(this))">
+      <div style="display:flex;align-items:center;gap:8px;flex:1">
+        <div class="weight-bar-bg" style="flex:1">
+          <div class="weight-bar" id="wbar-${section}-${k}" style="width:${pct}%"></div>
+        </div>
+        <span style="font-size:11px;color:var(--muted);width:28px">${val} pts</span>
+      </div>
+      <div class="setting-desc" style="max-width:300px"></div>
+    </div>`;
+  }
+  return html;
+}
+
+// ══════════════════════════════════════════════════════════════
+// Input handling
+// ══════════════════════════════════════════════════════════════
+function parseInputVal(el) {
+  if (el.type === 'number') {
+    const v = parseFloat(el.value);
+    return isNaN(v) ? 0 : v;
+  }
+  return el.value;
+}
+
+function handleChange(section, key, value) {
+  deepSet(config[section] || (config[section] = {}), key, value);
+  markChanged(section, key, value);
+  // Update toggle label
+  if (typeof value === 'boolean') {
+    const inputId = `inp-${section}-${key.replace(/\./g, '-')}`;
+    const el = document.getElementById(inputId);
+    if (el) {
+      const lbl = el.parentElement.nextElementSibling;
+      if (lbl && lbl.classList.contains('toggle-label')) {
+        lbl.textContent = value ? 'ON' : 'OFF';
+        lbl.style.color = value ? 'var(--green)' : 'var(--muted)';
+      }
+    }
+  }
+}
+
+function handleWeightChange(section, key, value) {
+  deepSet(config[section] || (config[section] = {}), `weights.${key}`, value);
+  markChanged(section, `weights.${key}`, value);
+  updateWeightBar(section, key, value);
+  updateWeightTotal(section);
+}
+
+function markChanged(section, key, value) {
+  const dbKey = section;
+  const def = defaultGet(dbKey, key);
+  const inputId = `inp-${dbKey}-${key.replace(/\./g, '-')}`;
+  const el = document.getElementById(inputId);
+  if (el && el.type !== 'checkbox') {
+    const isModified = JSON.stringify(value) !== JSON.stringify(def);
+    el.classList.toggle('modified', isModified);
+  }
+  checkHasChanges();
+  updateSectionIndicator(section.replace('paper_trader','paper'));
+}
+
+function updateWeightBar(section, key, value) {
+  const bar = document.getElementById(`wbar-${section}-${key}`);
+  if (bar) bar.style.width = Math.min(100, Math.max(0, value)) + '%';
+}
+
+function updateWeightTotal(section) {
+  const sub = Object.values(SCHEMA).flatMap(s => s.subsections || []).find(
+    s => s.type === 'weights' && s.section === section
+  );
+  if (!sub) return;
+  const total = sub.keys.reduce((s, k) => s + (configGet(section, `weights.${k}`) || 0), 0);
+  const el = document.getElementById(`wsum-${section}`);
+  const wrap = document.getElementById(`weight-total-${section}`);
+  if (el) {
+    el.textContent = total;
+    el.className = `weight-sum ${total === 100 ? 'ok' : 'warn'}`;
+  }
+  if (wrap) {
+    const warn = wrap.querySelector('span:last-child');
+    if (warn) {
+      warn.textContent = total !== 100 ? '⚠ Should sum to 100' : '✓';
+      warn.style.color = total !== 100 ? 'var(--amber)' : 'var(--green)';
+    }
+  }
+}
+
+function updateWeightBars() {
+  const weightSubs = Object.values(SCHEMA).flatMap(s => s.subsections || []).filter(s => s.type === 'weights');
+  for (const sub of weightSubs) {
+    for (const k of sub.keys) {
+      const val = configGet(sub.section, `weights.${k}`) || 0;
+      updateWeightBar(sub.section, k, val);
+    }
+    updateWeightTotal(sub.section);
+  }
+}
+
+function updateSectionIndicator(sectionId) {
+  const el = document.getElementById(`ind-${sectionId}`);
+  if (!el) return;
+  const dbKey = sectionId === 'paper' ? 'paper_trader' : sectionId;
+  const cfgSection = config[dbKey] || {};
+  const defSection = defaults[dbKey] || {};
+  const changed = JSON.stringify(cfgSection) !== JSON.stringify(defSection);
+  el.classList.toggle('visible', changed);
+}
+
+function checkHasChanges() {
+  const changed = JSON.stringify(config) !== JSON.stringify(defaults);
+  hasChanges = changed;
+  const badge = document.getElementById('modified-badge');
+  if (badge) badge.style.display = changed ? 'inline-block' : 'none';
+}
+
+// ══════════════════════════════════════════════════════════════
+// Save / Reset
+// ══════════════════════════════════════════════════════════════
+async function saveConfig() {
+  try {
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(config),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    hasChanges = false;
+    document.getElementById('modified-badge').style.display = 'none';
+    document.getElementById('last-saved').textContent = 'Saved ' + new Date().toLocaleTimeString();
+    showToast('Configuration saved successfully', 'success');
+    // Clear all modified indicators
+    document.querySelectorAll('.modified').forEach(el => el.classList.remove('modified'));
+    document.querySelectorAll('.change-indicator').forEach(el => el.classList.remove('visible'));
+  } catch(e) {
+    showToast('Save failed: ' + e.message, 'error');
+  }
+}
+
+async function resetConfig() {
+  if (!confirm('Reset ALL settings to defaults? This cannot be undone.')) return;
+  try {
+    const res = await fetch('/api/config/reset', {method: 'POST'});
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    config = await res.json();
+    config._meta && delete config._meta;
+    hasChanges = false;
+    renderAll();
+    document.getElementById('modified-badge').style.display = 'none';
+    document.getElementById('last-saved').textContent = 'Reset ' + new Date().toLocaleTimeString();
+    showToast('Reset to defaults', 'info');
+  } catch(e) {
+    showToast('Reset failed: ' + e.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Toast
+// ══════════════════════════════════════════════════════════════
+let _toastTimer;
+function showToast(msg, type='info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.className = '', 3000);
+}
+
+// ══════════════════════════════════════════════════════════════
+// Nav highlight on scroll
+// ══════════════════════════════════════════════════════════════
+function setupNavHighlight() {
+  const content = document.getElementById('content');
+  const sections = ['scan','layer1','layer2','layer3','layer4','layer6','layer7','layer8','paper'];
+  content.addEventListener('scroll', () => {
+    let current = sections[0];
+    for (const id of sections) {
+      const el = document.getElementById(id);
+      if (el && el.getBoundingClientRect().top < 120) current = id;
+    }
+    document.querySelectorAll('#nav a').forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === `#${current}`);
+    });
+  }, {passive:true});
+
+  document.querySelectorAll('#nav a').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const target = document.getElementById(a.getAttribute('href').slice(1));
+      if (target) target.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+  });
+}
+
+// Warn on unsaved changes
+window.addEventListener('beforeunload', e => {
+  if (hasChanges) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+boot();
+</script>
+</body>
+</html>
