@@ -343,9 +343,9 @@ button:disabled { opacity:.5; cursor:not-allowed; }
       <table class="pt-tbl">
         <thead><tr>
           <th>#</th><th>Symbol</th><th>Dir</th><th>Strike</th><th>Expiry</th>
-          <th>Entry Prem</th><th>Spot Zone</th><th>Cur Spot</th><th>Cur Prem</th><th>Running P&amp;L</th><th>Status</th>
+          <th>Entry Prem</th><th>Spot Zone</th><th>SL Spot</th><th>T1 Spot</th><th>Cur Spot</th><th>Cur Prem</th><th>Running P&amp;L</th><th>Status</th>
         </tr></thead>
-        <tbody id="pt-active-body"><tr><td colspan="11" class="pt-empty">No active trades</td></tr></tbody>
+        <tbody id="pt-active-body"><tr><td colspan="13" class="pt-empty">No active trades</td></tr></tbody>
       </table>
     </div>
 
@@ -952,6 +952,8 @@ function renderPtTrades(trades) {
           <td style="color:#64748b;font-size:11px">${(t.expiry||'').slice(0,10)}</td>
           <td>${premCell}</td>
           <td style="color:#94a3b8">${fmt(t.entry_spot)}</td>
+          <td style="color:#f87171;font-size:12px">${t.sl_spot ? fmt(t.sl_spot) : '—'}</td>
+          <td style="color:#34d399;font-size:12px">${t.target1 ? fmt(t.target1) : '—'}</td>
           <td>${curSpotCell}</td>
           <td>${curPremCell}</td>
           <td class="${pnlCls}">${runPnl}</td>

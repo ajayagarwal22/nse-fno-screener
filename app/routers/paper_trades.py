@@ -116,7 +116,8 @@ def list_trades(limit: int = 50):
         today = date.today().isoformat()
         rows = con.execute(
             """
-            SELECT t.*, s.grade, s.confidence as gate_score, s.htf_trend, s.divergence
+            SELECT t.*, s.grade, s.confidence as gate_score, s.htf_trend, s.divergence,
+                   s.sl_spot, s.target1, s.target2
             FROM trades t
             LEFT JOIN signals s ON t.signal_id = s.id
             WHERE date(t.entry_time) = ?
