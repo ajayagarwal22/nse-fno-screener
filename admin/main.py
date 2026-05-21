@@ -20,10 +20,10 @@ DEFAULTS: dict = {
     # ── Scan ──────────────────────────────────────────────────────────────────
     "scan": {
         "interval_minutes":       5,
-        "min_confidence":         "A-",
-        "min_oi_threshold":       500,
-        "min_volume_multiplier":  1.5,
-        "max_bid_ask_spread_pct": 0.5,
+        "min_confidence":         "B",
+        "min_oi_threshold":       1500,
+        "min_volume_multiplier":  2.0,
+        "max_bid_ask_spread_pct": 0.3,
         "high_risk_window_hours": 24,
     },
 
@@ -42,19 +42,19 @@ DEFAULTS: dict = {
             "vix_elevated":             18.0,
             "vix_spike_pct":             5.0,
             "vix_low_premium":          13.0,
-            "vix_call_buying_cap":      22.0,
+            "vix_call_buying_cap":      20.0,
             "breadth_bullish_min":      60.0,
             "breadth_bearish_max":      40.0,
             "index_bullish_signals_min": 4,
             "index_bearish_signals_max": 1,
-            "overall_bullish_min":       3,
+            "overall_bullish_min":       4,
         },
     },
 
     # ── Layer 2: Stock Selector ───────────────────────────────────────────────
     "layer2": {
-        "top_n":                  20,
-        "rs_threshold":           0.02,
+        "top_n":                  10,
+        "rs_threshold":           0.04,
         "rs_index_threshold":     0.02,
         "liquidity_ttl_s":        1800,
         "volume_lookback_days":   20,
@@ -79,7 +79,7 @@ DEFAULTS: dict = {
             "candle_pattern":    5,
         },
         "thresholds": {
-            "min_score":                    50,
+            "min_score":                    60,
             "rsi_period":                   14,
             "divergence_lookback":          80,
             "pivot_left":                    3,
@@ -90,7 +90,7 @@ DEFAULTS: dict = {
             "macd_fast":                    12,
             "macd_slow":                    26,
             "macd_signal_period":            9,
-            "volume_expansion_mult":         1.3,
+            "volume_expansion_mult":         1.7,
             "volume_avg_bars":              20,
             "supertrend_period":            10,
             "supertrend_mult":               3.0,
@@ -111,8 +111,8 @@ DEFAULTS: dict = {
             "iv_skew":       True,
         },
         "thresholds": {
-            "pcr_bearish_below":        0.7,
-            "pcr_bullish_above":        1.3,
+            "pcr_bearish_below":        0.85,
+            "pcr_bullish_above":        1.15,
             "pcr_overheated_above":     1.5,
             "atm_range_pct":            2.0,
             "writing_dominance_ratio":  1.5,
@@ -144,18 +144,18 @@ DEFAULTS: dict = {
             "pcr":               5,
         },
         "thresholds": {
-            "a_plus_score":              85,
-            "a_minus_score":             65,
-            "b_score":                   55,
-            "a_plus_requires_divergence": True,
+            "a_plus_score":              78,
+            "a_minus_score":             70,
+            "b_score":                   60,
+            "a_plus_requires_divergence": False,
             "rs_positive_min":           0.01,
             "rs_negative_min":           0.01,
             "pcr_call_supportive_min":   0.8,
             "pcr_put_bearish_max":       1.0,
             "atr_entry_mult":            0.25,
-            "atr_sl_mult":               1.0,
-            "atr_t1_mult":               1.0,
-            "atr_t2_mult":               2.0,
+            "atr_sl_mult":               0.7,
+            "atr_t1_mult":               1.5,
+            "atr_t2_mult":               2.5,
             "atr_min_pct":               0.005,
         },
     },
@@ -170,8 +170,8 @@ DEFAULTS: dict = {
             "partial_booking":       True,
         },
         "thresholds": {
-            "time_exit_minutes":               60,
-            "momentum_threshold_pct":           0.1,
+            "time_exit_minutes":               45,
+            "momentum_threshold_pct":           0.15,
             "rsi_divergence_call_exit_below":  60,
             "rsi_divergence_put_exit_above":   40,
             "volume_exhaustion_ratio":          0.5,
@@ -196,6 +196,22 @@ DEFAULTS: dict = {
         },
     },
 
+    # ── Layer 8 Suppression Filters ──────────────────────────────────────────
+    "layer8_filters": {
+        "time_of_day_filter": {
+            "enabled": True,
+            "block_windows": [
+                {"start": "11:50", "end": "12:45", "reason": "lunch_chop"}
+            ]
+        },
+        "symbol_cooldown_min": 90,
+        "max_simultaneous_per_sector": 2,
+        "max_trades_per_day": 10,
+        "daily_trend_call_veto": True,
+        "daily_trend_index": "NIFTY",
+        "daily_trend_ema_period": 20,
+    },
+
     # ── Paper Trader ──────────────────────────────────────────────────────────
     "paper_trader": {
         "enabled":                  True,
@@ -210,15 +226,15 @@ DEFAULTS: dict = {
         "retry_delay_s":            2,
 
         # ── Position sizing ───────────────────────────────────────────────────
-        "sizing_mode":              "lots",   # "lots" | "capital" | "risk"
+        "sizing_mode":              "risk_inr",   # "lots" | "capital" | "risk_inr"
         "default_lots":             1,        # lots per trade (overrides instrument default)
         "max_capital_per_trade":    10000,    # INR: max premium deployed per trade
         "max_loss_per_trade":       2000,     # INR: hard max loss per trade (all lots)
 
         # ── Stop Loss (choose one mode) ───────────────────────────────────────
         # mode: "spot_atr" (current default) | "premium_pct" | "premium_amount"
-        "sl_mode":                  "spot_atr",
-        "sl_premium_pct":           50.0,     # SL at 50% of entry premium (mode=premium_pct)
+        "sl_mode":                  "premium_pct",
+        "sl_premium_pct":           40.0,     # SL at 40% of entry premium (mode=premium_pct)
         "sl_premium_amount":        2000,     # SL if premium drops by this INR (mode=premium_amount)
 
         # ── Target 1 (partial exit at T1) ─────────────────────────────────────

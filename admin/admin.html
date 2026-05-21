@@ -193,8 +193,9 @@ input:checked+.slider:before{transform:translateX(18px)}
     <a href="#layer4"       ><span class="nav-icon">📉</span>L4: Derivatives</a>
     <a href="#layer6"       ><span class="nav-icon">🚦</span>L6: Entry Trigger</a>
     <a href="#layer7"       ><span class="nav-icon">🚪</span>L7: Exit Rules</a>
-    <a href="#layer8"       ><span class="nav-icon">🌐</span>L8: Macro Risk</a>
-    <a href="#paper"        ><span class="nav-icon">📝</span>Paper Trader</a>
+    <a href="#layer8"        ><span class="nav-icon">🌐</span>L8: Macro Risk</a>
+    <a href="#layer8_filters"><span class="nav-icon">⏱️</span>L8: ToD Filters</a>
+    <a href="#paper"         ><span class="nav-icon">📝</span>Paper Trader</a>
   </nav>
   <div style="flex:1"></div>
   <div style="padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)">
@@ -504,6 +505,36 @@ const SCHEMA = {
       }
     ]
   },
+  layer8_filters: {
+    label: "L8: Time-of-Day Filter & Concentrations", icon: "⏱️",
+    desc: "Post-Layer-6 suppression filters: lunch window blocks, symbol cooldowns, sector caps, daily trade cap, and daily trend veto.",
+    subsections: [
+      {
+        label: "Time-of-Day Filter",
+        settings: [
+          {key:"time_of_day_filter.enabled", label:"Lunch Window Block", type:"toggle", desc:"Block all signals during the configured lunch chop window (e.g. 11:50–12:45)"},
+          {key:"time_of_day_filter.block_windows[0].start", label:"Block Start", type:"text", desc:"Start of lunch block window (HH:MM IST, default 11:50)"},
+          {key:"time_of_day_filter.block_windows[0].end",   label:"Block End",   type:"text", desc:"End of lunch block window (HH:MM IST, default 12:45)"},
+        ]
+      },
+      {
+        label: "Concentration Limits",
+        settings: [
+          {key:"symbol_cooldown_min",          label:"Symbol/Direction Cooldown (min)", type:"number", unit:"min", min:0,  max:240, desc:"Minimum minutes between two signals for the same symbol+direction"},
+          {key:"max_simultaneous_per_sector",  label:"Max Open Trades per Sector",      type:"number", unit:"",    min:1,  max:10,  desc:"Block new signals when this many ACTIVE/WATCHING trades already exist in the same sector"},
+          {key:"max_trades_per_day",           label:"Max Trades per Day",              type:"number", unit:"",    min:1,  max:50,  desc:"Hard daily cap — no new signals once this many non-SKIPPED trades are created today"},
+        ]
+      },
+      {
+        label: "Daily Trend CALL Veto",
+        settings: [
+          {key:"daily_trend_call_veto",   label:"Daily Trend CALL Veto", type:"toggle", desc:"Block all CALL signals when daily close < EMA{period} on index. PUT signals are unaffected."},
+          {key:"daily_trend_index",       label:"Trend Index",           type:"text",   desc:"Index symbol used for the daily trend check (e.g. NIFTY or BANKNIFTY)"},
+          {key:"daily_trend_ema_period",  label:"EMA Period",            type:"number", unit:"days", min:5, max:200, desc:"EMA period for the daily trend check (default 20)"},
+        ]
+      }
+    ]
+  },
   paper: {
     label: "Paper Trader", icon: "📝",
     desc: "Auto-entry/exit paper trade engine. Uses a dedicated SQLite DB at ~/nse-fno-screener-data/screener_trades.db with WAL mode.",
@@ -673,14 +704,19 @@ async function boot() {
 // Deep get/set helpers
 // ══════════════════════════════════════════════════════════════
 function deepGet(obj, path) {
-  return path.split('.').reduce((o, k) => (o && o[k] !== undefined ? o[k] : undefined), obj);
+  // Supports both dot notation and array notation e.g. "block_windows[0].start"
+  const parts = path.replace(/\[(\d+)\]/g, '.$1').split('.');
+  return parts.reduce((o, k) => (o != null && o[k] !== undefined ? o[k] : undefined), obj);
 }
 function deepSet(obj, path, value) {
-  const keys = path.split('.');
+  // Supports both dot notation and array notation e.g. "block_windows[0].start"
+  const keys = path.replace(/\[(\d+)\]/g, '.$1').split('.');
   let cur = obj;
   for (let i = 0; i < keys.length - 1; i++) {
-    if (!cur[keys[i]] || typeof cur[keys[i]] !== 'object') cur[keys[i]] = {};
-    cur = cur[keys[i]];
+    const k = keys[i];
+    const nextIsIndex = /^\d+$/.test(keys[i + 1]);
+    if (cur[k] == null || typeof cur[k] !== 'object') cur[k] = nextIsIndex ? [] : {};
+    cur = cur[k];
   }
   cur[keys[keys.length - 1]] = value;
 }
@@ -1054,7 +1090,7 @@ function showToast(msg, type='info') {
 // ══════════════════════════════════════════════════════════════
 function setupNavHighlight() {
   const content = document.getElementById('content');
-  const sections = ['scan','layer1','layer2','layer3','layer4','layer6','layer7','layer8','paper'];
+  const sections = ['scan','layer1','layer2','layer3','layer4','layer6','layer7','layer8','layer8_filters','paper'];
   content.addEventListener('scroll', () => {
     let current = sections[0];
     for (const id of sections) {

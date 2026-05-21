@@ -4,8 +4,10 @@ Calls all 8 engine layers in sequence and returns a list of Signals.
 Each run is independent and stateless; caching is handled per-layer.
 """
 import asyncio
+import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from app.data.kite_client import kite_client
@@ -19,6 +21,25 @@ from app.engines.stock_selector import Candidacy, select_candidates
 from app.engines.technical import score_bearish_confluence, score_bullish_confluence
 
 logger = logging.getLogger(__name__)
+
+_ADMIN_CONFIG_PATH = Path(__file__).parent.parent / "admin" / "admin_config.json"
+
+
+def _get_layer3_min_score() -> int:
+    """
+    Read layer3.thresholds.min_score from admin_config.json.
+    Returns 60 if the file is missing or unreadable.
+    """
+    try:
+        if _ADMIN_CONFIG_PATH.exists():
+            with open(_ADMIN_CONFIG_PATH) as f:
+                data = json.load(f)
+            val = data.get("layer3", {}).get("thresholds", {}).get("min_score")
+            if isinstance(val, (int, float)):
+                return int(val)
+    except Exception as exc:
+        logger.warning(f"[Screener] Could not read layer3 min_score from config: {exc}")
+    return 60
 
 # Indices instrument tokens (NSE)
 _NIFTY_TOKEN = 256265
@@ -92,7 +113,7 @@ async def run_scan(trade_type: TradeType = TradeType.INTRADAY) -> list[Signal]:
             )
             # Index candidates use a lower Layer 3 threshold — their regime alignment
             # is already confirmed at candidacy level (nifty_bias / banknifty_bias).
-            layer3_min = 30 if candidate.is_index else 45
+            layer3_min = 30 if candidate.is_index else _get_layer3_min_score()
             if tech.score < layer3_min:
                 logger.debug(
                     f"[Layer 3] {symbol} score={tech.score:.0f} "
@@ -140,6 +161,32 @@ async def run_scan(trade_type: TradeType = TradeType.INTRADAY) -> list[Signal]:
                     f"[Layer 6] SIGNAL: {symbol} {direction.value} | "
                     f"Confidence={signal.confidence.value} | Score={signal.gate_score}"
                 )
+
+                # Post-Layer-6 suppression filters
+                from app.engines.suppression_filter import (
+                    check_time_of_day, check_symbol_cooldown, check_sector_cap,
+                    check_daily_cap, check_daily_trend_veto, log_suppression,
+                    load_suppression_config,
+                )
+                _sup_cfg = load_suppression_config()
+                _sup_reason = (
+                    check_time_of_day(_sup_cfg) or
+                    check_symbol_cooldown(symbol, direction.value, _sup_cfg) or
+                    check_sector_cap(symbol, _sup_cfg) or
+                    check_daily_cap(_sup_cfg) or
+                    check_daily_trend_veto(symbol, direction.value, _sup_cfg, kite_client)
+                )
+                if _sup_reason:
+                    log_suppression(
+                        symbol, direction.value,
+                        signal.confidence.value, signal.gate_score,
+                        _sup_reason,
+                    )
+                    logger.info(
+                        f"[Suppression] {symbol} {direction.value} blocked: {_sup_reason}"
+                    )
+                    continue
+
                 signals.append(signal)
                 import paper_trader; paper_trader.on_signal(signal)
 

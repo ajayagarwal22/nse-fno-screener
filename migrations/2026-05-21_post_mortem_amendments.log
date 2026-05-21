@@ -1,0 +1,99 @@
+2026-05-21 Post-Mortem Amendments Log
+======================================
+
+[Phase 1 — Config Changes to admin/main.py DEFAULTS]
+
+scan.min_confidence: "A-" → "B"
+scan.min_oi_threshold: 500 → 1500
+scan.min_volume_multiplier: 1.5 → 2.0
+scan.max_bid_ask_spread_pct: 0.5 → 0.3
+
+layer1.thresholds.vix_call_buying_cap: 22.0 → 20.0
+layer1.thresholds.overall_bullish_min: 3 → 4
+
+layer2.top_n: 20 → 10
+layer2.rs_threshold: 0.02 → 0.04
+
+layer3.thresholds.volume_expansion_mult: 1.3 → 1.7
+layer3.thresholds.min_score: 50 → 60
+
+layer4.thresholds.pcr_bullish_above: 1.3 → 1.15
+layer4.thresholds.pcr_bearish_below: 0.7 → 0.85
+
+layer6.thresholds.a_plus_score: 85 → 78
+layer6.thresholds.a_plus_requires_divergence: True → False
+layer6.thresholds.a_minus_score: 65 → 70
+layer6.thresholds.b_score: 55 → 60
+layer6.thresholds.atr_sl_mult: 1.0 → 0.7
+layer6.thresholds.atr_t1_mult: 1.0 → 1.5
+layer6.thresholds.atr_t2_mult: 2.0 → 2.5
+
+layer7.thresholds.time_exit_minutes: 60 → 45
+layer7.thresholds.momentum_threshold_pct: 0.1 → 0.15
+
+paper_trader.sl_mode: "spot_atr" → "premium_pct"
+paper_trader.sl_premium_pct: 50.0 → 40.0
+paper_trader.sizing_mode: "lots" → "risk_inr"
+paper_trader.max_loss_per_trade: (unchanged) 2000
+
+[Phase 2 — New Parameters Added to admin/main.py DEFAULTS and admin/admin.html SCHEMA]
+
+layer8_filters.time_of_day_filter.enabled: (new) = true
+layer8_filters.time_of_day_filter.block_windows[0].start: (new) = "11:50"
+layer8_filters.time_of_day_filter.block_windows[0].end: (new) = "12:45"
+layer8_filters.time_of_day_filter.block_windows[0].reason: (new) = "lunch_chop"
+layer8_filters.symbol_cooldown_min: (new) = 90
+layer8_filters.max_simultaneous_per_sector: (new) = 2
+layer8_filters.max_trades_per_day: (new) = 10
+layer8_filters.daily_trend_call_veto: (new) = true
+layer8_filters.daily_trend_index: (new) = "NIFTY"
+layer8_filters.daily_trend_ema_period: (new) = 20
+
+admin/admin.html:
+  - deepGet/deepSet updated to support array index notation (e.g. block_windows[0].start)
+  - New SCHEMA section "layer8_filters" added after "layer8" with 3 subsections:
+      "Time-of-Day Filter" (3 fields)
+      "Concentration Limits" (3 fields)
+      "Daily Trend CALL Veto" (3 fields)
+  - Sidebar nav link "L8: ToD Filters" added
+  - setupNavHighlight sections list updated to include "layer8_filters"
+
+admin/admin_config.json:
+  - Created from scratch with all Phase 1 + Phase 2 values
+  - Includes _meta: {version: "1.0", last_modified: "2026-05-21T00:00:00"}
+  - Validated as correct JSON (python3 -c "import json; json.load(...)")
+
+[Phase 3 — New Logic Files]
+
+app/engines/suppression_filter.py: (new file)
+  Functions:
+    load_suppression_config()    — reads admin_config.json layer8_filters, falls back to hardcoded defaults
+    check_time_of_day(config)    — blocks signals during configured lunch/chop windows
+    check_symbol_cooldown(symbol, direction, config) — enforces per-symbol+direction cooldown via signals table
+    check_sector_cap(symbol, config) — caps concurrent WATCHING/ACTIVE trades per sector
+    check_daily_cap(config)      — enforces max_trades_per_day via trades table count
+    check_daily_trend_veto(symbol, direction, config, kite_client) — vetoes CALLs when daily close < EMA (cached 300s)
+    log_suppression(...)         — appends CSV row to ~/nse-fno-screener-data/suppression_log.csv
+  Sector map covers 100+ F&O symbols across 15 sector buckets.
+  Indices (NIFTY, BANKNIFTY, etc.) have sector="Index" and are exempt from sector cap.
+
+app/screener.py: wired 5 suppression checks post-Layer-6
+  - Added _get_layer3_min_score() helper (reads admin_config.json, default 60)
+  - layer3_min for non-index candidates now reads from admin_config.json (was hardcoded 45)
+  - After signal generation (if signal:), all 5 suppression checks run before
+    signals.append() and paper_trader.on_signal()
+  - Suppressed signals are logged to suppression_log.csv and loop continues
+
+[Phase 4 — This Log]
+
+migrations/2026-05-21_post_mortem_amendments.log: (this file, new directory)
+
+Files created:
+  admin/admin_config.json
+  app/engines/suppression_filter.py
+  migrations/2026-05-21_post_mortem_amendments.log
+
+Files modified:
+  admin/main.py
+  admin/admin.html
+  app/screener.py
