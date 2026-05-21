@@ -12,6 +12,7 @@ import pandas as pd
 
 from app.config import settings
 from app.data.kite_client import kite_client
+from app.engines.admin_cfg import cfg
 from app.engines.market_regime import Bias, MarketRegime
 
 # Option chain liquidity changes slowly — cache result per symbol for 30 min
@@ -133,10 +134,11 @@ def _build_index_candidates(
                 continue
         else:
             rs = _relative_strength(index_ret, nifty_ret)
-            if rs > 0.02:
+            _rs_idx = cfg("layer2", "rs_index_threshold", default=0.04)
+            if rs > _rs_idx:
                 candidacy = Candidacy.BULLISH
                 reason = f"{nse_sym} RS={rs:+.2%} — outperforming Nifty"
-            elif rs < -0.02:
+            elif rs < -_rs_idx:
                 candidacy = Candidacy.BEARISH
                 reason = f"{nse_sym} RS={rs:+.2%} — underperforming Nifty"
             else:
@@ -160,7 +162,7 @@ def _build_index_candidates(
 def select_candidates(
     regime: MarketRegime,
     nifty_daily_df: pd.DataFrame | None = None,
-    top_n: int = 20,
+    top_n: int | None = None,
 ) -> list[StockCandidate]:
     """
     Return the top N bullish and top N bearish candidates from the F&O universe.
@@ -170,6 +172,8 @@ def select_candidates(
     # here so NIFTY/BANKNIFTY/FINNIFTY don't appear twice in the same scan
     # (once via spot token, once via their NFO-FUT futures token).
     _index_names = {sym for sym, _ in _NSE_INDEX_CONFIGS}
+    if top_n is None:
+        top_n = cfg("layer2", "top_n", default=10)
 
     instruments = kite_client.get_fno_instruments()
     stocks = instruments[
@@ -203,10 +207,11 @@ def select_candidates(
 
         opt_liquid = _check_option_liquidity(symbol)
 
-        if rs > 0.02:
+        _rs_thr = cfg("layer2", "rs_threshold", default=0.04)
+        if rs > _rs_thr:
             candidacy = Candidacy.BULLISH
             reason = f"RS={rs:+.2%}, vol={vol_ratio:.1f}x, outperforming Nifty"
-        elif rs < -0.02:
+        elif rs < -_rs_thr:
             candidacy = Candidacy.BEARISH
             reason = f"RS={rs:+.2%}, vol={vol_ratio:.1f}x, underperforming Nifty"
         else:

@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from app.data.kite_client import kite_client
+from app.engines.admin_cfg import cfg
 
 
 class OIInterpretation(str, Enum):
@@ -49,11 +50,13 @@ class DerivativesSignal:
 
 
 def _classify_pcr(pcr: float) -> PCRSignal:
-    if pcr < 0.7:
+    _bear = cfg("layer4", "thresholds", "pcr_bearish_below", default=0.85)
+    _bull = cfg("layer4", "thresholds", "pcr_bullish_above", default=1.15)
+    if pcr < _bear:
         return PCRSignal.BEARISH
     elif pcr > 1.5:
         return PCRSignal.OVERHEATED
-    elif pcr > 1.3:
+    elif pcr > _bull:
         return PCRSignal.BULLISH
     return PCRSignal.NEUTRAL
 

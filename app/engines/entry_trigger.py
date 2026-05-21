@@ -9,6 +9,7 @@ from enum import Enum
 from typing import Optional
 import uuid
 
+from app.engines.admin_cfg import cfg
 from app.engines.derivatives import DerivativesSignal, OIInterpretation, WritingBias
 from app.engines.market_regime import Bias, MarketRegime, RegimeType
 from app.engines.option_selector import OptionTarget, OptionType, TradeType
@@ -175,13 +176,16 @@ def _weighted_score(gates: dict[str, bool], gate_defs: list[tuple[str, int]]) ->
 
 
 def _grade_confidence(score: float, gates: dict[str, bool]) -> Optional[Confidence]:
-    # A+ requires RSI divergence — it is the highest-conviction setup
-    has_div = gates.get("rsi_divergence", False)
-    if score >= 85 and has_div:
+    _a_plus  = cfg("layer6", "thresholds", "a_plus_score",              default=78)
+    _a_minus = cfg("layer6", "thresholds", "a_minus_score",             default=70)
+    _b       = cfg("layer6", "thresholds", "b_score",                   default=60)
+    _div_req = cfg("layer6", "thresholds", "a_plus_requires_divergence", default=False)
+    has_div  = gates.get("rsi_divergence", False)
+    if score >= _a_plus and (not _div_req or has_div):
         return Confidence.A_PLUS
-    elif score >= 65:
+    elif score >= _a_minus:
         return Confidence.A_MINUS
-    elif score >= 55:
+    elif score >= _b:
         return Confidence.B
     return None
 
@@ -233,22 +237,25 @@ def _build_reasons(
 
 def _compute_targets(spot: float, atr: float, direction: Direction) -> tuple[str, str, str, str, str]:
     """Compute entry, SL, T1, T2 and R:R based on spot structure and ATR."""
+    sl_m = cfg("layer6", "thresholds", "atr_sl_mult", default=0.7)
+    t1_m = cfg("layer6", "thresholds", "atr_t1_mult", default=1.5)
+    t2_m = cfg("layer6", "thresholds", "atr_t2_mult", default=2.5)
     # Entry zone is a small confirmation move (0.25× ATR) beyond current price
     # so WATCHING trades wait for a real breakout rather than entering immediately.
     confirm = round(atr * 0.25, 2)
     if direction == Direction.CALL:
         entry_level = round(spot + confirm, 2)
         entry = f"Premium breakout above {entry_level:.2f} zone"
-        sl = f"Spot closes below VWAP or {spot - atr:.2f}"
-        t1 = f"{spot + atr:.2f} (1:1 RR)"
-        t2 = f"{spot + 2 * atr:.2f} (1:2 RR)"
+        sl = f"Spot closes below VWAP or {spot - sl_m * atr:.2f}"
+        t1 = f"{spot + t1_m * atr:.2f} (1:{t1_m:.0f} RR)"
+        t2 = f"{spot + t2_m * atr:.2f} (1:{t2_m:.0f} RR)"
     else:
         entry_level = round(spot - confirm, 2)
         entry = f"Premium breakdown below {entry_level:.2f} zone"
-        sl = f"Spot reclaims VWAP or {spot + atr:.2f}"
-        t1 = f"{spot - atr:.2f} (1:1 RR)"
-        t2 = f"{spot - 2 * atr:.2f} (1:2 RR)"
-    return entry, sl, t1, t2, "1:2"
+        sl = f"Spot reclaims VWAP or {spot + sl_m * atr:.2f}"
+        t1 = f"{spot - t1_m * atr:.2f} (1:{t1_m:.0f} RR)"
+        t2 = f"{spot - t2_m * atr:.2f} (1:{t2_m:.0f} RR)"
+    return entry, sl, t1, t2, f"1:{t2_m:.0f}"
 
 
 def evaluate_signal(

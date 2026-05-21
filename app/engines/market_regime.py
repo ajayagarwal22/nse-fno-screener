@@ -11,6 +11,7 @@ import pandas as pd
 
 from app.data import cache
 from app.data.nse_client import MarketBreadth, VIXData, fetch_market_breadth, fetch_vix
+from app.engines.admin_cfg import cfg
 
 
 class RegimeType(str, Enum):
@@ -155,7 +156,8 @@ def analyze_market_regime(
         breadth.breadth_score > 55,
         vix.value < 18,
     ])
-    if overall_bullish >= 3:
+    _bullish_min = cfg("layer1", "thresholds", "overall_bullish_min", default=4)
+    if overall_bullish >= _bullish_min:
         overall_bias = Bias.BULLISH
     elif overall_bullish <= 1:
         overall_bias = Bias.BEARISH
@@ -166,9 +168,10 @@ def analyze_market_regime(
     # MEAN_REVERTING and RANGEBOUND are prime environments for RSI divergence setups.
     _no_buy = {RegimeType.EVENT_RISK, RegimeType.THETA_DECAY}
 
+    _vix_call_cap = cfg("layer1", "thresholds", "vix_call_buying_cap", default=20.0)
     call_buying = (
         regime_type not in _no_buy
-        and vix.value < 22
+        and vix.value < _vix_call_cap
         and overall_bias != Bias.BEARISH
     )
     put_buying = (

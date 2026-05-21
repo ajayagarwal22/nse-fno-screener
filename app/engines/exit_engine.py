@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional
 
+from app.engines.admin_cfg import cfg
 from app.engines.entry_trigger import Direction, Signal
 from app.engines.technical import ConfluenceResult
 
@@ -50,17 +51,20 @@ def check_exit_conditions(
     minutes_in_trade = (now - entry_time).seconds // 60
     direction = signal.direction
 
-    # ---------- Time-based exit (45–60 min, intraday) ----------
-    if minutes_in_trade >= 60:
+    # ---------- Time-based exit ----------
+    _time_exit_min = cfg("layer7", "thresholds", "time_exit_minutes",     default=45)
+    _momentum_pct  = cfg("layer7", "thresholds", "momentum_threshold_pct", default=0.15)
+    _mom_factor    = 1.0 + _momentum_pct / 100.0
+    if minutes_in_trade >= _time_exit_min:
         if direction == Direction.CALL:
-            no_momentum = current_spot <= entry_spot * 1.001
+            no_momentum = current_spot <= entry_spot * _mom_factor
         else:
-            no_momentum = current_spot >= entry_spot * 0.999
+            no_momentum = current_spot >= entry_spot / _mom_factor
         if no_momentum:
             return ExitDecision(
                 should_exit=True, reason=ExitReason.TIME_EXIT,
                 exit_type="FULL",
-                message=f"60 min elapsed with no momentum — time-based exit",
+                message=f"{_time_exit_min} min elapsed with no momentum — time-based exit",
             )
 
     # ---------- VWAP loss ----------
