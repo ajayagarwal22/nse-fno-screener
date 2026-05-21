@@ -145,7 +145,7 @@ class MonitorThread:
                         entries.append((trade, round(spot, 2), round(opt_ltp, 2)))
 
                 else:  # ACTIVE
-                    reason = self._check_exit(trade, spot, now_hm)
+                    reason = self._check_exit(trade, spot, now_hm, opt_ltp)
                     if reason:
                         exits.append((trade, reason, round(spot, 2), round(opt_ltp, 2)))
                         self._trades.pop(trade_id)
@@ -196,12 +196,19 @@ class MonitorThread:
         trade: ActiveTrade,
         spot: float,
         now_hm: str,
+        opt_ltp: float = 0.0,
     ) -> Optional[str]:
         """Return exit reason string or None."""
         if trade.exit_time_rule and now_hm >= trade.exit_time_rule:
             return "TIME"
         if now_hm >= EXIT_BEFORE_CLOSE:
             return "MARKET_CLOSE"
+
+        # Hard P&L cap: exit if running loss exceeds ₹1000
+        if trade.entry_premium and opt_ltp > 0:
+            running_loss = (opt_ltp - trade.entry_premium) * trade.lot_size
+            if running_loss <= -1000:
+                return "SL"
 
         if trade.direction == "PUT":
             if trade.sl_spot  and spot >= trade.sl_spot:   return "SL"
