@@ -166,9 +166,15 @@ def select_candidates(
     Return the top N bullish and top N bearish candidates from the F&O universe.
     Needs daily OHLCV data per symbol; gracefully skips symbols without data.
     """
+    # Index names handled separately via _build_index_candidates — exclude them
+    # here so NIFTY/BANKNIFTY/FINNIFTY don't appear twice in the same scan
+    # (once via spot token, once via their NFO-FUT futures token).
+    _index_names = {sym for sym, _ in _NSE_INDEX_CONFIGS}
+
     instruments = kite_client.get_fno_instruments()
     stocks = instruments[
-        (instruments["segment"] == "NFO-FUT") | (instruments["instrument_type"] == "EQ")
+        ((instruments["segment"] == "NFO-FUT") | (instruments["instrument_type"] == "EQ")) &
+        (~instruments["name"].isin(_index_names))
     ].drop_duplicates(subset=["name"])
 
     nifty_ret = pd.Series(dtype=float)
