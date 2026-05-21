@@ -12,7 +12,6 @@ Returns None (with a logged warning) if the exact contract is not found
 in the instruments cache — caller should skip the trade.
 """
 import logging
-import math
 from datetime import date
 from typing import Optional, Tuple
 
@@ -37,54 +36,34 @@ def pick(symbol: str, spot: float, direction: str) -> Optional[PickResult]:
     Returns:
         (strike, option_type, expiry, instrument_token) or None on failure.
     """
-    interval   = inst.get_strike_interval(symbol)
     option_type = "CE" if direction == "CALL" else "PE"
-
-    strike = _select_strike(spot, interval, direction)
-    logger.debug(
-        f"[StrikePicker] {symbol} spot={spot:.2f} direction={direction} "
-        f"interval={interval} → strike={strike} {option_type}"
-    )
 
     expiry = inst.get_nearest_expiry(symbol, min_days=1)
     if expiry is None:
         logger.warning(f"[StrikePicker] No valid expiry for {symbol}")
         return None
 
-    token = inst.resolve_token(symbol, strike, option_type, expiry)
-    if token is None:
-        # One retry: try next expiry in case nearest has no contracts yet
-        expiry = inst.get_nearest_expiry(symbol, min_days=2)
-        if expiry:
-            token = inst.resolve_token(symbol, strike, option_type, expiry)
+    # Pick directly from available strikes in the chain — avoids interval
+    # mis-detection when the instruments list contains old contracts with
+    # different step sizes (e.g. BHEL 2.5-pt historical vs 10-pt current).
+    result = inst.pick_itm_strike(symbol, spot, option_type, expiry, ITM_STEPS)
+    if result is None:
+        # Retry with next expiry
+        expiry2 = inst.get_nearest_expiry(symbol, min_days=2)
+        if expiry2 and expiry2 != expiry:
+            result = inst.pick_itm_strike(symbol, spot, option_type, expiry2, ITM_STEPS)
+            if result:
+                expiry = expiry2
 
-    if token is None:
+    if result is None:
         logger.warning(
-            f"[StrikePicker] Contract not found: {symbol} {strike}{option_type} {expiry}"
+            f"[StrikePicker] Contract not found: {symbol} {option_type} near {spot:.2f} exp={expiry}"
         )
         return None
 
+    strike, token = result
     logger.info(
         f"[StrikePicker] Selected {symbol} {strike}{option_type} "
         f"exp={expiry} token={token}"
     )
     return strike, option_type, expiry, token
-
-
-def _select_strike(spot: float, interval: int, direction: str) -> float:
-    """
-    Compute the ITM strike.
-    CALL: round DOWN to nearest interval (first strike below spot)
-    PUT:  round UP   to nearest interval (first strike above spot)
-
-    ITM_STEPS > 1 goes deeper ITM by that many intervals.
-    """
-    if direction == "CALL":
-        atm = math.floor(spot / interval) * interval
-        return atm - (ITM_STEPS - 1) * interval
-    else:
-        atm = math.ceil(spot / interval) * interval
-        # If spot is exactly on a strike, go one interval higher
-        if atm == spot:
-            atm += interval
-        return atm + (ITM_STEPS - 1) * interval

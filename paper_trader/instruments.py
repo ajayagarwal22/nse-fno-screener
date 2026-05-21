@@ -10,7 +10,7 @@ Cached locally as instruments_cache.csv — resolves:
 import logging
 import time
 from datetime import date, timedelta
-from typing import Optional
+from typing import Optional, Tuple
 
 import pandas as pd
 
@@ -158,6 +158,66 @@ def resolve_token(
         )
         return None
     return int(matches.iloc[0]["instrument_token"])
+
+
+def pick_itm_strike(
+    symbol: str,
+    spot: float,
+    option_type: str,
+    expiry: date,
+    itm_steps: int = 1,
+) -> Optional[Tuple[float, int]]:
+    """
+    Find the ITM strike directly from available contracts for this expiry.
+
+    For CALL (CE): picks the highest strike ≤ spot, then steps deeper by
+    (itm_steps-1) intervals.
+    For PUT  (PE): picks the lowest  strike ≥ spot, then steps deeper.
+
+    Returns (strike, instrument_token) or None if no contracts found.
+    """
+    if _df is None:
+        return None
+
+    chain = _df[
+        (_df["name"] == symbol) &
+        (_df["instrument_type"] == option_type) &
+        (_df["expiry"] == expiry) &
+        (_df["strike"].notna())
+    ].copy()
+
+    if chain.empty:
+        return None
+
+    strikes = sorted(chain["strike"].unique())
+
+    if option_type == "CE":
+        # ITM for calls = strikes below spot; pick closest then step deeper
+        itm = [s for s in strikes if s <= spot]
+        if not itm:
+            itm = strikes  # all OTM — take nearest
+        itm.sort(reverse=True)
+        idx = min(itm_steps - 1, len(itm) - 1)
+        target = itm[idx]
+    else:
+        # ITM for puts = strikes above spot; pick closest then step deeper
+        itm = [s for s in strikes if s >= spot]
+        if not itm:
+            itm = strikes  # all OTM — take nearest
+        itm.sort()
+        idx = min(itm_steps - 1, len(itm) - 1)
+        target = itm[idx]
+
+    mask = (
+        (_df["name"] == symbol) &
+        (_df["instrument_type"] == option_type) &
+        (_df["expiry"] == expiry) &
+        (_df["strike"] == target)
+    )
+    row = _df[mask]
+    if row.empty:
+        return None
+    return float(target), int(row.iloc[0]["instrument_token"])
 
 
 def get_lot_size(symbol: str) -> int:
