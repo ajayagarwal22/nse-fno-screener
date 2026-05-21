@@ -197,6 +197,22 @@ def set_trade_status(trade_id: int, status: str):
     _enqueue(_do_set_status, trade_id, status)
 
 
+def has_open_trade(symbol: str, direction: str) -> bool:
+    """Return True if there is already a WATCHING or ACTIVE trade for this
+    symbol+direction today. Used to deduplicate repeated scan signals."""
+    conn = _connect()
+    try:
+        cur = conn.execute("""
+            SELECT 1 FROM trades
+            WHERE symbol = ? AND direction = ?
+              AND status IN ('WATCHING', 'ACTIVE')
+            LIMIT 1
+        """, (symbol, direction))
+        return cur.fetchone() is not None
+    finally:
+        conn.close()
+
+
 def get_active_trades() -> list:
     """
     Read all WATCHING/ACTIVE trades joined with their signal's risk levels.

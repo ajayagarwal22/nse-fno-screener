@@ -207,36 +207,46 @@ class PaperTrader:
             return
         logger.info(f"[PaperTrader] signal#{signal_id} {symbol} {direction}")
 
-        # 2. Refresh instruments if needed (cached; cheap after first load)
+        # 2. Dedup: skip if we already have an ACTIVE/WATCHING trade for this
+        #    symbol+direction today — repeated scans emit the same signal each
+        #    5-min cycle, causing duplicate entries with near-identical prices.
+        if db.has_open_trade(symbol, direction):
+            logger.info(
+                f"[PaperTrader] DEDUP {symbol} {direction} — "
+                f"already WATCHING/ACTIVE, signal#{signal_id} skipped"
+            )
+            return
+
+        # 4. Refresh instruments if needed (cached; cheap after first load)
         try:
             inst.load(self._kite)
         except Exception as exc:
             logger.warning(f"[PaperTrader] Instruments refresh skipped: {exc}")
 
-        # 3. Get live spot price (to pick the right ITM strike)
+        # 5. Get live spot price (to pick the right ITM strike)
         spot = self._get_spot_ltp(symbol)
         if not spot or spot <= 0:
             self._skip_trade(signal_id, symbol, direction, "Could not fetch spot LTP")
             return
 
-        # 4. Pick ITM strike based on live spot
+        # 6. Pick ITM strike based on live spot
         result = pick(symbol, spot, direction)
         if result is None:
             self._skip_trade(signal_id, symbol, direction, "Strike/expiry not found in instruments")
             return
         strike, option_type, expiry, option_token = result
 
-        # 5. Resolve spot instrument token for WebSocket monitoring
+        # 7. Resolve spot instrument token for WebSocket monitoring
         spot_token = inst.get_nse_spot_token(symbol, self._kite)
         if not spot_token:
             self._skip_trade(signal_id, symbol, direction, "Could not resolve spot token")
             return
 
-        # 6. Use signal's entry zone level; fall back to live spot if not parsed
+        # 8. Use signal's entry zone level; fall back to live spot if not parsed
         zone     = entry_zone if entry_zone and entry_zone > 0 else round(spot, 2)
         lot_size = inst.get_lot_size(symbol)
 
-        # 7. Write trade to DB as WATCHING (entry premium/time filled when zone is hit)
+        # 9. Write trade to DB as WATCHING (entry premium/time filled when zone is hit)
         trade_id = db.insert_trade({
             "signal_id":        signal_id,
             "symbol":           symbol,
@@ -256,7 +266,7 @@ class PaperTrader:
             logger.error(f"[PaperTrader] Trade DB insert failed for signal#{signal_id}")
             return
 
-        # 8. Register with monitor and subscribe tokens
+        # 10. Register with monitor and subscribe tokens
         active = ActiveTrade(
             trade_id=trade_id,
             signal_id=signal_id,
